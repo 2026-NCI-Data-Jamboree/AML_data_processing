@@ -451,4 +451,5 @@ write_cohort("MALANI_2022", s, layers,
 # shared metadata the portal reads alongside the data
 for (d in c("catalog", "schema")) { unlink(file.path("results", d), recursive = TRUE)
   file.copy(d, "results", recursive = TRUE) }
+file.copy("dataset_sources.tsv", "results", overwrite = TRUE)
 cat("done ->", out_root, "\n")

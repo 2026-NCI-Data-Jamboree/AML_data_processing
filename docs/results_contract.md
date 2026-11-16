@@ -7,6 +7,7 @@ gzip-compressed TSVs.
 ```
 results/
   catalog/datasets.tsv        dataset inventory (catalog/README.md)
+  dataset_sources.tsv         every dataset used or proposed: source, accession, NCI resource status
   schema/*.tsv                harmonized annotation schema
   cell_lines/                 prepare_cell_line_data.R
   patients/<DATASET_ID>/      prepare_patient_data.R
