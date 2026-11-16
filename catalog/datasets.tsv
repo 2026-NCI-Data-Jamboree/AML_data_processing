@@ -1,0 +1,17 @@
+dataset_id	name	sample_type	population	modalities	reference	source	accession	used_by	status	notes
+CPTAC_AML_ADULT	CPTAC adult AML	patient	adult	clinical;genomics;transcriptomics;proteomics;phosphoproteomics;metabolomics;drug_screen	Chu et al. 2026 Nat Cancer; Pino et al. 2024 Cell Rep Med	CPTAC		drug_response_biomarkers	planned	MAP1A proof of concept
+CPTAC_KF_PEDIATRIC_AML	CPTAC-Kids First pediatric AML	patient	pediatric	TBD		CPTAC / Kids First			planned
+BEAT_AML	Beat AML	patient	adult	clinical;genomics;transcriptomics;drug_screen	Bottomly et al. 2022 Cancer Cell	Beat AML / GDC		drug_response_biomarkers	planned
+TCGA_LAML	TCGA LAML	patient	adult	clinical;genomics;transcriptomics;methylation	TCGA	GDC	TCGA-LAML		planned
+TARGET_AML	TARGET AML	patient	pediatric	clinical;genomics;transcriptomics;methylation	TARGET	GDC	TARGET-AML		planned
+WANG_2022_PED	Pediatric AML pharmacogenomics	patient	pediatric	transcriptomics;drug_screen	Wang et al. 2022 Blood Cancer Discov			drug_response_biomarkers	planned
+LEE_2018	Lee et al. AML drug response	patient	adult	transcriptomics;drug_screen	Lee et al. 2018 Nat Commun			drug_response_biomarkers	planned
+MALANI_2022	FPM tumor board AML	patient	adult	transcriptomics;drug_screen	Malani et al. 2022 Cancer Discov			drug_response_biomarkers	planned
+JAYAVELU_2022	Proteogenomic subtypes of AML	patient	adult	proteomics;phosphoproteomics	Jayavelu et al. 2022 Cancer Cell			cell_line_variability	planned	phenotypic classification used for grouping
+DEPMAP_26Q3	DepMap 26Q3	cell_line	mixed	transcriptomics;genomics;crispr_dependency	Tsherniak et al. 2017 Cell	DepMap portal	26Q3	cell_line_variability	processed
+DEMETER2_V6	DEMETER2 RNAi	cell_line	mixed	rnai_dependency	McFarland et al. 2018 Nat Commun	DepMap portal	DEMETER2 v6	cell_line_variability	processed
+DEPMAP_DRUG_HARMONIZED	DepMap harmonized drug screens (PRISM, CTRP, GDSC)	cell_line	mixed	drug_screen		DepMap portal		cell_line_variability	processed
+CCLE_2019	CCLE miRNA, chromatin, metabolomics	cell_line	mixed	mirna;chromatin;metabolomics	Li et al. 2019 Nat Med; Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed
+CCLE_RRBS	CCLE RRBS methylation	cell_line	mixed	methylation	Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed
+GSE270494	EPIC methylation (Noguera-Castells et al.)	cell_line	mixed	methylation		GEO	GSE270494	cell_line_variability	downloaded	not yet in prepare_cell_line_data.R
+PAUDEL_2024	Sphingolipidomic subtypes of AML	cell_line;patient	mixed	lipidomics	Paudel et al. 2024 Blood Adv			cell_line_variability	planned

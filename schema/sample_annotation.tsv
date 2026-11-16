@@ -1,0 +1,19 @@
+field	level	type	required	vocabulary	description
+study_id	study	string	yes	catalog/datasets.tsv:dataset_id	Dataset the sample belongs to
+sample_id	sample	string	yes		Sample ID as given by the source
+participant_id	sample	string	yes		Patient or cell-line ID (cell lines: DepMap ModelID when available)
+sample_type	sample	enum	yes	sample_type	patient or cell_line
+population	sample	enum	no	population	adult / pediatric
+age_years	sample	number	no		Age at diagnosis (patients) or donor age (cell lines)
+sex	sample	enum	no	sex	Sex
+disease_oncotree	sample	string	yes	OncoTree	OncoTree code (e.g. AML, AMLMRC)
+disease_ncit	sample	string	no	NCI Thesaurus	NCIt concept code
+tissue	sample	enum	no	tissue	bone_marrow / peripheral_blood / cell_line
+timepoint	sample	enum	no	timepoint	diagnosis / relapse / remission
+mutations	sample	string	no	HGNC	;-separated HGNC symbols with a damaging/hotspot mutation (e.g. TP53;FLT3)
+KMT2A_rearranged	sample	boolean	no		KMT2A fusion present
+KMT2A_partner	sample	string	no	HGNC	KMT2A fusion partner gene
+ELN2022_risk	sample	enum	no	eln_risk	ELN 2022 risk group (patients)
+treatment_response	sample	enum	no	response	Response to induction (patients)
+overall_survival_days	sample	number	no		OS time (patients)
+os_event	sample	boolean	no		Death observed (patients)

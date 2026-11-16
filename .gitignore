@@ -1,0 +1,13 @@
+.DS_Store
+.Rhistory
+.Rproj.user/
+.RData
+
+# processed output (rebuild with the prepare_*.R scripts)
+results/
+
+# raw downloads (documented in data/README.md); keep curated files
+data/cell_lines/*
+!data/cell_lines/*.tsv
+data/patients/
+data/single_cell/
