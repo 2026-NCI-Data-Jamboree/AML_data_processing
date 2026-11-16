@@ -69,6 +69,31 @@ xlsx_read <- function(path, sheet = 1, header = TRUE, skip = 0) {
   d <- as.data.frame(M[-1, , drop = FALSE], stringsAsFactors = FALSE); names(d) <- make.unique(h)
   d[rowSums(!is.na(d)) > 0, , drop = FALSE]
 }
+# very large single-sheet xlsx (too big for xml2): stream sheet1 to a TSV with perl, one row per line;
+# shared-string cells come out as "s:<index>" and are resolved against sharedStrings.xml
+xlsx_big_to_df <- function(path, n_cols) {
+  tsv <- tempfile(fileext = ".tsv")
+  perl <- paste0(
+    'BEGIN{$/="</c>"; $cur=0; @row=()} ',
+    'if (/<c r="([A-Z]+)(\\d+)"([^>]*)>(?:.*?<v>([^<]*)<\\/v>)?/s) { ',
+    '  ($cl,$rn,$at,$v)=($1,$2,$3,$4); $v="" unless defined $v; ',
+    '  if ($rn != $cur) { print join("\\t", map { defined $_ ? $_ : "" } @row[0..', n_cols - 1, ']), "\\n" if $cur; @row=(); $cur=$rn } ',
+    '  $c=0; $c=$c*26+ord($_)-64 for split //, $cl; ',
+    '  $row[$c-1] = ($at =~ /t="s"/) ? "s:$v" : $v } ',
+    'END{ print join("\\t", map { defined $_ ? $_ : "" } @row[0..', n_cols - 1, ']), "\\n" if $cur }')
+  status <- system(paste("unzip -p", shQuote(path), "xl/worksheets/sheet1.xml | perl -ne", shQuote(perl), ">", shQuote(tsv)))
+  stopifnot(status == 0)
+  ns <- c(d1 = "http://schemas.openxmlformats.org/spreadsheetml/2006/main")
+  ss <- vapply(xml_find_all(read_xml(unz(path, "xl/sharedStrings.xml")), "//d1:si", ns), function(si)
+    paste(xml_text(xml_find_all(si, ".//d1:t[not(ancestor::d1:rPh)]", ns)), collapse = ""), "")
+  d <- read.delim(tsv, header = FALSE, colClasses = "character", quote = "", comment.char = "", na.strings = "")
+  unlink(tsv)
+  res <- function(x) ifelse(!is.na(x) & startsWith(x, "s:"), ss[as.integer(sub("^s:", "", x)) + 1], x)
+  h <- res(unlist(d[1, ])); d <- d[-1, , drop = FALSE]
+  for (j in seq_len(ncol(d))) if (any(startsWith(d[[j]], "s:"), na.rm = TRUE)) d[[j]] <- res(d[[j]])
+  names(d) <- make.unique(ifelse(is.na(h) | h == "", paste0("V", seq_along(h)), h))
+  d
+}
 num <- function(x) suppressWarnings(as.numeric(x))
 yn  <- function(x) { x <- toupper(trimws(x))
   ifelse(x %in% c("Y", "YES", "1", "TRUE", "+", "POSITIVE"), TRUE,
@@ -407,6 +432,73 @@ write_cohort("CPTAC_AML_ADULT", s, list(
   extra_groupings = data.frame(column = "cell_state", label = "Cell state (Primitive / Committed)",
                                true_label = "", false_label = "", kind = "categorical"),
   notes = "Proteogenomic cohort; protein and phosphosite ratios corrected for red-blood-cell contamination. No survival or drug response in this release.")
+
+# ================================================ Zenodo 14160480 (AML proteogenomics) ==
+# Protein (374 patients, batch-adjusted), phosphopeptides (217), RNA-seq TPM (361), single-drug IC50
+# (102 non-M3 patients; Supp. Data 10-11) and clinical information (Supp. Data 1).
+cat("ZENODO_14160480\n")
+Z <- file.path(dd, "zenodo_14160480")
+first_gene <- function(g) sub(";.*$", "", g)
+pz <- read.csv(file.path(Z, "Protein abundance of 374 AML patients after adjusting batch effects.csv"), check.names = FALSE)
+P  <- num_matrix(pz, 3:ncol(pz))
+rmin <- apply(P, 1, min, na.rm = TRUE)                           # per-protein fill value used for missing
+fill <- abs(P - rmin) < 1e-9 & rowSums(abs(P - rmin) < 1e-9, na.rm = TRUE) >= 3
+P[fill] <- NA
+P  <- collapse_rows(P, first_gene(pz$PG.Genes))
+phz <- read.csv(file.path(Z, "Phosphopeptides of 217 AML patients.csv"), check.names = FALSE)
+scol <- grep("^T[0-9]+$", names(phz))
+site <- paste0(first_gene(phz$PG.Genes), "_", phz$PTM.SiteAA, phz$PTM.SiteLocation)
+fid  <- paste0(sub(";.*$", "", phz$PTM.ProteinId), "_", phz$PTM.SiteAA, phz$PTM.SiteLocation)
+X  <- collapse_rows(log2(num_matrix(phz, scol)), fid)            # raw intensity -> log2; duplicated sites averaged
+lab <- site[match(rownames(X), fid)]; win <- phz$PTM.FlankingRegion[match(rownames(X), fid)]
+ok <- !is.na(lab) & !startsWith(lab, "_")
+X <- X[ok, , drop = FALSE]; lab <- lab[ok]; win <- win[ok]
+rz <- xlsx_big_to_df(file.path(Z, "Gene expression matrix of 361 AML patients with RNA-seq data in transcript per million (TPM) format.xlsx"), 363)
+E  <- collapse_rows(log2(num_matrix(rz, grep("^T[0-9]+$", names(rz))) + 1), rz$symbol)
+d11 <- xlsx_read(file.path(Z, "Supp_Data_11.xlsx"), "Single drug", skip = 1)
+D  <- tapply(log10(num(d11$IC50_measured)), list(d11$Compound_name, d11$Sample_ID), mean)
+d10 <- xlsx_read(file.path(Z, "Supp_Data_10.xlsx"), 1, skip = 1)
+k10 <- match(compound_key(rownames(D)), compound_key(d10$Drug))
+# clinical information (Dataset S1): 374 newly diagnosed patients; OS / EFS in days
+cz <- xlsx_read(file.path(Z, "Supp_Data_1.xlsx"), 1, skip = 1)
+cz <- cz[grepl("^T[0-9]+$", cz$Sample_ID), ]
+ids <- sort(unique(c(cz$Sample_ID, colnames(P), colnames(X), colnames(E), colnames(D))))
+ci <- match(ids, cz$Sample_ID); cc <- cz[ci, ]
+fus <- ifelse(cc$Gene_fusions %in% c("Negative", "NA"), NA, cc$Gene_fusions)
+apl <- cc$FAB %in% "M3" | grepl("PML::RARA", cc$Gene_fusions)
+s <- data.frame(
+  sample_id = ids, participant_id = ids,
+  population = ifelse(num(cc$Age) < 18, "pediatric", "adult"), age_years = num(cc$Age),
+  sex = c(F = "female", M = "male")[cc$Sex],
+  disease_oncotree = ifelse(apl, "APLPMLRARA", "AML"), diagnosis = cc$WHO_classification_2022,
+  timepoint = ifelse(is.na(ci), NA, "diagnosis"),
+  risk_group = risk_of(cc$ELN_risk_2017), risk_classification = ifelse(is.na(risk_of(cc$ELN_risk_2017)), NA, "ELN 2017"),
+  KMT2A_rearranged = ifelse(is.na(ci), NA, grepl("KMT2A", cc$Gene_fusions) | cc$WHO_classification_2022 %in% "KMT2A rearrangement"),
+  KMT2A_partner = ifelse(grepl("KMT2A::", cc$Gene_fusions), sub("^.*KMT2A::", "", cc$Gene_fusions), NA),
+  overall_survival_days = num(cc$OS), os_event = c("1" = TRUE, "0" = FALSE)[cc$OS_status],
+  event_free_survival_days = num(cc$EFS), efs_event = c("1" = TRUE, "0" = FALSE)[cc$EFS_status],
+  proteomic_subtype = ifelse(cc$Proteomic_subtype %in% "NA", NA, cc$Proteomic_subtype),
+  FAB = ifelse(cc$FAB %in% c("AML", "NA"), NA, cc$FAB), who_2022 = cc$WHO_classification_2022,
+  gene_fusion = ifelse(is.na(ci), NA, ifelse(is.na(fus), "none detected", fus)),
+  induction_group = ifelse(cc$Induction_group %in% "NA", NA, cc$Induction_group),
+  HSCT = c("1" = TRUE, "0" = FALSE)[cc$HSCT],
+  stringsAsFactors = FALSE)
+s <- add_signatures(s, E)
+zg <- data.frame(column = c("proteomic_subtype", "FAB", "who_2022", "gene_fusion", "induction_group"),
+                 label = c("Proteomic subtype (S1-S8)", "FAB subtype", "WHO 2022 class", "Gene fusion", "Induction group"),
+                 true_label = "", false_label = "", kind = "categorical")
+write_cohort("ZENODO_14160480", s, list(
+  expr_layer(E, "RNA expression", "log2(TPM+1)", "Zenodo 14160480"),
+  protein_layer(P, "log2 abundance (batch-adjusted)", "Zenodo 14160480"),
+  phospho_layer(X, lab, win, "log2 intensity", "Zenodo 14160480"),
+  drug_layer("drug_ic50", D, drug_aliases(rownames(D)), "Drug response (IC50)", "log10 IC50 (nM)",
+             "Zenodo 14160480 (Supp. Data 11)", TRUE,
+             mechanism = ifelse(is.na(k10), "", d10$Targets[k10]), drug_class = ifelse(is.na(k10), "", d10$Category[k10]))),
+  extra_groupings = zg,
+  notes = paste("Proteogenomic cohort of 374 newly diagnosed AML patients deposited at Zenodo (record 14160480);",
+                "clinical data from Dataset S1 (no per-gene mutation calls). Drug response for 102 non-M3 patients.",
+                "Protein fill values for missing measurements set to NA; phosphosite intensities log2-transformed.",
+                "Drug-combination CI values are not included."))
 
 # ================================================================ LEE 2018 ==
 cat("LEE_2018\n")

@@ -1,5 +1,6 @@
 dataset_id	name	sample_type	population	modalities	reference	source	accession	used_by	status	notes
 CPTAC_AML_ADULT	CPTAC adult AML	patient	adult	clinical;genomics;proteomics;phosphoproteomics	Chu et al. 2026 Nat Cancer	CPTAC	data freeze v8	drug_response_biomarkers	processed	protein and phosphosites (RBC-corrected); no survival or drug response in this release
+ZENODO_14160480	AML proteogenomics (Zenodo 14160480)	patient	adult	clinical;transcriptomics;proteomics;phosphoproteomics;drug_screen		Zenodo	14160480	drug_response_biomarkers	processed	374 newly diagnosed patients; OS / EFS; drug IC50 for 102 non-M3 patients; no per-gene mutation calls
 CPTAC_KF_PEDIATRIC_AML	CPTAC-Kids First pediatric AML	patient	pediatric	TBD		CPTAC / Kids First			planned	
 BEAT_AML	Beat AML	patient	adult	clinical;genomics;transcriptomics;drug_screen	Bottomly et al. 2022 Cancer Cell	Beat AML / GDC		drug_response_biomarkers	processed	
 PTRC_BEAT_AML	Beat AML proteomics (PTRC)	patient	adult	clinical;genomics;proteomics;phosphoproteomics;drug_screen	Pino et al. 2024 Cell Rep Med	OHSU / PNNL Proteogenomic Translational Research Center (PTRC)		drug_response_biomarkers	processed	Beat AML specimens; clinical data and drug AUC from Beat AML

@@ -39,6 +39,7 @@ Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lin
 | `Functional_Precision_Medicine_Tumor_Board_AML/` | `MALANI_2022` | `File_0` (samples), `File_1.1` (clinical), `File_2` (drug library), `File_3.2` (DSS / sDSS), `File_6` (mutations), `File_7` (RNA log2 CPM) | Malani et al. 2022 Cancer Discov, supplementary files |
 
 | `PTRC/` | `PTRC_BEAT_AML` | `PTRC_metadata.tsv`, `PTRC_protein_gene_ratio_MD.tsv`, `PTRC_phospho_single_site_ratio_MD.tsv` | OHSU / PNNL PTRC (Pino et al. 2024) |
+| `zenodo_14160480/` | `ZENODO_14160480` | `Protein abundance of 374 AML patients after adjusting batch effects.csv`, `Phosphopeptides of 217 AML patients.csv`, `Gene expression matrix of 361 AML patients ... (TPM) format.xlsx`, `Supp_Data_1.xlsx` (clinical), `Supp_Data_10.xlsx` (drugs), `Supp_Data_11.xlsx` (IC50) | Zenodo record 14160480 |
 | `adult_AML_data_freeze/` | `CPTAC_AML_ADULT` | `proteogenomics_metadata_20250112.tsv`, `v8/prot_ratio_gene_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv`, `v8/phospho_ratio_signle-site_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv` | CPTAC adult AML data freeze v8 |
 
 `prepare_patient_data.R` also reads `cell_lines/DepMap_26Q3/PortalCompounds.csv` for drug targets.

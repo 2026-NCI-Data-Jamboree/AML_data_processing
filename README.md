@@ -20,7 +20,7 @@ From the repo root:
 
 ```bash
 Rscript prepare_cell_line_data.R       # ~ 5 min; needs the raw downloads in data/cell_lines/
-Rscript prepare_patient_data.R         # ~ 1 min; needs data/patients/ (and DepMap PortalCompounds.csv for drug targets)
+Rscript prepare_patient_data.R         # ~ 5 min; needs perl; needs data/patients/ (and DepMap PortalCompounds.csv for drug targets)
 ```
 
 Each script also copies `catalog/` and `schema/` into `results/`. To share the results:
@@ -44,7 +44,7 @@ automatically, or you can set `AML_PORTAL_DATA=/path/to/results`.
 
 ## Patient data (`prepare_patient_data.R`)
 
-Six cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
+Seven cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
 (one column per sample in `values/`):
 
 | DATASET_ID | cohort | samples / patients | layers | survival |
@@ -55,6 +55,7 @@ Six cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `
 | `MALANI_2022` | Malani et al. 2022 Cancer Discov (FPM tumor board) | 252 / 186 | RNA (163), DSS and sDSS, 515 drugs (164) | OS, EFS |
 | `PTRC_BEAT_AML` | Beat AML proteomics, OHSU / PNNL PTRC (Pino et al. 2024) | 210 / 210 | protein (210), phosphosites (210), drug AUC from Beat AML (167) | OS (from Beat AML) |
 | `CPTAC_AML_ADULT` | CPTAC adult AML, data freeze v8 (Chu et al. 2026) | 162 / 162 | protein (162), phosphosites (162) | none |
+| `ZENODO_14160480` | AML proteogenomics, Zenodo record 14160480 (374 newly diagnosed) | 374 / 374 | RNA (361), protein (374), phosphosites (217), drug IC50, 41 drugs (102) | OS, EFS |
 
 - **Annotation** (`schema/sample_annotation.tsv`): population, age, sex, OncoTree code, tissue,
   timepoint (diagnosis / relapse / refractory / remission / residual), risk group with its classification
@@ -78,3 +79,9 @@ Six cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `
   annotation, survival and drug AUC from the matching Beat AML sample (`beat_aml_sample_id`); RNA is not
   repeated. The PTRC drug layer has `duplicate_of = BEAT_AML/drug_auc` in `datasets.tsv` so analyses can
   avoid counting it twice.
+- **Zenodo 14160480:** protein values equal to a protein's repeated minimum (fill values for missing
+  measurements, about 11% of values) are set to NA; phosphosite intensities are log2-transformed; RNA is
+  log2(TPM+1). The 217 MB RNA workbook is streamed with `perl` (too large for the xml2 reader). Drug
+  response is log10 IC50 (nM; lower = more sensitive); drug-combination CI values are not used. Clinical
+  data from Supp. Data 1 (sex, age, FAB, ELN 2017, WHO 2022, fusions, induction, OS / EFS in days, proteomic
+  subtype S1-S8); there are no per-gene mutation calls, so `mut_<GENE>` is NA.
