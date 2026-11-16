@@ -44,8 +44,8 @@ automatically, or you can set `AML_PORTAL_DATA=/path/to/results`.
 
 ## Patient data (`prepare_patient_data.R`)
 
-Four cohorts with ex vivo drug response, written to `results/patients/<DATASET_ID>/` in the same layout
-as `results/cell_lines/` (one column per sample in `values/`):
+Six cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
+(one column per sample in `values/`):
 
 | DATASET_ID | cohort | samples / patients | layers | survival |
 |---|---|---|---|---|
@@ -53,6 +53,8 @@ as `results/cell_lines/` (one column per sample in `values/`):
 | `LEE_2018` | Lee et al. 2018 Nat Commun | 30 / 30 | RNA array (29), drug AUC, 159 drugs (30) | none (no event indicator) |
 | `WANG_2022_PED` | Wang et al. 2022 Blood Cancer Discov, pediatric | 66 / 57 | RNA (48), drug AUC, 45 drugs (61) | EFS |
 | `MALANI_2022` | Malani et al. 2022 Cancer Discov (FPM tumor board) | 252 / 186 | RNA (163), DSS and sDSS, 515 drugs (164) | OS, EFS |
+| `PTRC_BEAT_AML` | Beat AML proteomics, OHSU / PNNL PTRC (Pino et al. 2024) | 210 / 210 | protein (210), phosphosites (210), drug AUC from Beat AML (167) | OS (from Beat AML) |
+| `CPTAC_AML_ADULT` | CPTAC adult AML, data freeze v8 (Chu et al. 2026) | 162 / 162 | protein (162), phosphosites (162) | none |
 
 - **Annotation** (`schema/sample_annotation.tsv`): population, age, sex, OncoTree code, tissue,
   timepoint (diagnosis / relapse / refractory / remission / residual), risk group with its classification
@@ -69,3 +71,10 @@ as `results/cell_lines/` (one column per sample in `values/`):
   `drug_class`. `lower_is_stronger` is TRUE for AUC and FALSE for DSS / sDSS.
 - **Genes:** HGNC symbols, protein-coding only; Ensembl IDs mapped with the Beat AML annotation;
   duplicated probes / IDs averaged.
+- **Proteomics:** `protein` (gene-level log2 ratio) and `phospho` (single-site log2 values; `features/phospho.tsv`
+  adds `site` and `sequence_window`). CPTAC: data freeze v8 `prot_ratio_gene_*_RBC_corrected` and
+  `phospho_ratio_single-site_*_RBC_corrected` (not imputed). Acetyl, glyco and succinyl sites are not used yet.
+- **PTRC and Beat AML:** PTRC `sample_id` is the Beat AML labId. The 167 specimens in Beat AML waves 1–4 take
+  annotation, survival and drug AUC from the matching Beat AML sample (`beat_aml_sample_id`); RNA is not
+  repeated. The PTRC drug layer has `duplicate_of = BEAT_AML/drug_auc` in `datasets.tsv` so analyses can
+  avoid counting it twice.

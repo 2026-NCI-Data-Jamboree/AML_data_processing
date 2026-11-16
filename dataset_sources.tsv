@@ -1,7 +1,8 @@
 dataset_id	name	category	population	data_types	reference	source	accession	nci_resource	nci_program	status
-CPTAC_AML_ADULT	CPTAC adult AML	patient	adult	clinical; genomics; RNA; proteome; phosphoproteome; metabolome; drug screen	Pino et al. 2024 Cell Rep Med; Chu et al. 2026 Nat Cancer	CPTAC; genomics in GDC, proteomics in PDC		yes	CPTAC (GDC / PDC)	proposed
+CPTAC_AML_ADULT	CPTAC adult AML	patient	adult	clinical; mutations; proteome; phosphoproteome	Chu et al. 2026 Nat Cancer	CPTAC adult AML data freeze v8; proteomics in PDC, genomics in GDC		yes	CPTAC (GDC / PDC)	processed
 CPTAC_KF_PEDIATRIC_AML	CPTAC-Kids First pediatric AML	patient	pediatric	to be confirmed		CPTAC + Gabriella Miller Kids First		partly	CPTAC (PDC); Kids First is NIH Common Fund	proposed
 BEAT_AML	Beat AML	patient	adult (some pediatric)	clinical; exome; RNA; ex vivo drug response	Bottomly et al. 2022 Cancer Cell	Beat AML 2.0 public release (dbGaP sample IDs); genomic data also in GDC	BEATAML1.0-COHORT (GDC)	yes	GDC (drug response from the Beat AML release, not GDC)	processed
+PTRC_BEAT_AML	Beat AML proteomics (PTRC)	patient	adult	clinical; proteome; phosphoproteome; ex vivo drug response (from Beat AML)	Pino et al. 2024 Cell Rep Med	OHSU / PNNL Proteogenomic Translational Research Center (PTRC); Beat AML specimens		yes	CPTAC Proteogenomic Translational Research Center (PTRC)	processed
 TCGA_LAML	TCGA LAML	patient	adult	clinical; genomics; RNA; methylation	TCGA	GDC	TCGA-LAML	yes	TCGA (GDC)	proposed
 TARGET_AML	TARGET AML	patient	pediatric	clinical; genomics; RNA; methylation	TARGET	GDC	TARGET-AML	yes	TARGET (GDC)	proposed
 WANG_2022_PED	Pediatric AML pharmacogenomics	patient	pediatric	clinical; gene panel; RNA; ex vivo drug response	Wang et al. 2022 Blood Cancer Discov	Supplementary tables; RNA in NCBI GEO	GSE192638	no		processed

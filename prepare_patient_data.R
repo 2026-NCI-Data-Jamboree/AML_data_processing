@@ -204,7 +204,8 @@ write_cohort <- function(id, samples, layers, extra_groupings = NULL, notes = ""
     add(file.path("values", paste0(L$key, ".tsv.gz")), "values", paste(L$label, "- values per sample"))
     idx[[L$key]] <- data.frame(key = L$key, label = L$label, modality = L$modality, unit = L$unit,
                                source = L$source, lower_is_stronger = L$lower_is_stronger,
-                               n_features = nrow(X), n_samples = sum(colSums(!is.na(X)) > 0))
+                               n_features = nrow(X), n_samples = sum(colSums(!is.na(X)) > 0),
+                               duplicate_of = if (is.null(L$duplicate_of)) "" else L$duplicate_of)
     cat(sprintf("  %-14s %4d samples x %6d features\n", L$key, idx[[L$key]]$n_samples, nrow(X)))
   }
   samples <- samples[order(samples$sample_id), ]
@@ -242,6 +243,21 @@ drug_layer <- function(key, X, names_list, label, unit, source, lower, mechanism
                              mechanism = mechanism, drug_class = drug_class, stringsAsFactors = FALSE),
        label = label, modality = "drug_screen", unit = unit, source = source, lower_is_stronger = lower)
 }
+# proteomics: gene-level protein (rows = genes) and single-site phospho (rows = sites, "GENE_S123" labels)
+protein_layer <- function(P, unit, source) {
+  P <- P[!is.na(rownames(P)) & rownames(P) != "", , drop = FALSE]
+  list(key = "protein", X = P, features = data.frame(label = rownames(P), gene_symbol = rownames(P)),
+       label = "Protein abundance", modality = "proteomics", unit = unit, source = source, lower_is_stronger = FALSE)
+}
+phospho_layer <- function(X, site_label, window, unit, source) {
+  gene <- sub("_[^_]*$", "", site_label)
+  list(key = "phospho", X = X,
+       features = data.frame(label = site_label, gene_symbol = gene, site = sub("^.*_", "", site_label),
+                             sequence_window = window, stringsAsFactors = FALSE),
+       label = "Phosphosite abundance", modality = "phosphoproteomics", unit = unit, source = source,
+       lower_is_stronger = FALSE)
+}
+
 oncotree_of <- function(x) {
   x <- toupper(x)
   ifelse(grepl("PROMYELOCYTIC|^APL$|PML-RARA", x), "APLPMLRARA",
@@ -313,6 +329,84 @@ write_cohort("BEAT_AML", s, list(
   extra_groupings = data.frame(column = "cell_state", label = "Cell state (Primitive / Committed)",
                                true_label = "", false_label = "", kind = "categorical"),
   notes = "sample_id = dbGaP RNA-seq sample (DNA sample when no RNA-seq)")
+beat_s <- s; beat_D <- D; beat_map <- map
+
+# ======================================================== PTRC (Beat AML proteomics) ==
+# Proteomics of Beat AML specimens (OHSU / PNNL PTRC). sample_id = Beat AML labId. Specimens in Beat AML
+# waves 1-4 take their annotation, survival and drug AUC from the matching Beat AML sample; RNA is not
+# repeated here (it is in BEAT_AML), and the drug layer is flagged as a copy of BEAT_AML's.
+cat("PTRC_BEAT_AML\n")
+PT <- file.path(dd, "PTRC")
+pt <- read.delim(file.path(PT, "PTRC_metadata.tsv"), check.names = FALSE, stringsAsFactors = FALSE)
+m  <- beat_map[match(pt$Barcode.ID, beat_map$labId), ]
+bsid <- ifelse(is.na(m$dbgap_rnaseq_sample), m$dbgap_dnaseq_sample, m$dbgap_rnaseq_sample)
+bi <- match(bsid, beat_s$sample_id)
+s <- beat_s[bi, setdiff(names(beat_s), c("study_id", "sample_type"))]
+s$sample_id <- pt$Barcode.ID
+s$participant_id <- ifelse(is.na(bi), paste0("PTRC_", pt$Barcode.ID), beat_s$participant_id[bi])
+s$beat_aml_sample_id <- ifelse(is.na(bi), NA, bsid)
+un <- is.na(bi)                                                   # not in Beat AML waves 1-4
+s$disease_oncotree[un] <- "AML"
+s$tissue[un] <- c("Bone Marrow Aspirate" = "bone_marrow", "Peripheral Blood" = "peripheral_blood",
+                  "Leukapheresis" = "peripheral_blood")[pt$specimen.type[un]]
+s$timepoint[un] <- ifelse(pt$InitialAMLDiagnosis[un] %in% TRUE, "diagnosis", NA)
+fus <- pt$consensusAMLFusions
+s$KMT2A_rearranged[un] <- ifelse(is.na(fus[un]), NA, grepl("KMT2A", fus[un]))
+for (g in c("NPM1", "DNMT3A", "CEBPA", "IDH2", "IDH1", "TET2", "NRAS")) {
+  v <- num(pt[[paste0(g, ".mutation.status")]]) > 0
+  s[[paste0("mut_", g)]][un] <- v[un]
+}
+s$mut_FLT3[un] <- pt$FLT3.ITD[un] %in% c(TRUE, "TRUE")
+s$mutations[un] <- apply(s[un, paste0("mut_", aml_genes)], 1, function(r)
+  if (all(is.na(r))) NA else paste(aml_genes[!is.na(r) & r %in% TRUE], collapse = ";"))
+s$cell_state <- ifelse(is.na(pt$pvc_classification), s$cell_state, pt$pvc_classification)
+full2id <- setNames(pt$Barcode.ID, pt$SampleID.full)
+pr <- read.delim(file.path(PT, "PTRC_protein_gene_ratio_MD.tsv"), check.names = FALSE)
+P  <- collapse_rows(num_matrix(pr, 2:ncol(pr)), pr$GeneSymbol); colnames(P) <- full2id[colnames(P)]
+ph <- read.delim(file.path(PT, "PTRC_phospho_single_site_ratio_MD.tsv"), check.names = FALSE)
+X  <- num_matrix(ph, grep("^PTRC_", names(ph))); rownames(X) <- ph$Index; colnames(X) <- full2id[colnames(X)]
+keep <- !is.na(bi) & bsid %in% colnames(beat_D)
+Dp <- beat_D[, bsid[keep], drop = FALSE]; colnames(Dp) <- pt$Barcode.ID[keep]
+dl <- drug_layer("drug_auc", Dp, drug_aliases(rownames(Dp)), "Drug response (AUC)", "AUC (probit fit)",
+                 "Beat AML ex vivo inhibitor assay (same values as BEAT_AML)", TRUE)
+dl$duplicate_of <- "BEAT_AML/drug_auc"
+write_cohort("PTRC_BEAT_AML", s, list(
+  protein_layer(P, "log2 ratio (TMT, median-centered)", "PTRC global proteomics"),
+  phospho_layer(X, ph$short_name, ph$SequenceWindow, "log2 intensity (TMT)", "PTRC phosphoproteomics"),
+  dl),
+  extra_groupings = data.frame(column = "cell_state", label = "Cell state (Primitive / Committed)",
+                               true_label = "", false_label = "", kind = "categorical"),
+  notes = paste0("Beat AML specimens with proteomics; sample_id = Beat AML labId. ", sum(!un), " of ", nrow(pt),
+                 " specimens are in Beat AML waves 1-4 and take their clinical data and drug AUC from there."))
+
+# ======================================================== CPTAC adult AML (data freeze v8) ==
+cat("CPTAC_AML_ADULT\n")
+CF <- file.path(dd, "adult_AML_data_freeze")
+cm <- read.delim(file.path(CF, "proteogenomics_metadata_20250112.tsv"), check.names = FALSE, stringsAsFactors = FALSE)
+st <- function(col) if (col %in% names(cm)) num(cm[[col]]) > 0 else rep(NA, nrow(cm))
+kmt <- st("KMT2A-Fusions.mutation.status") | st("KMT2A-MLLT3.mutation.status") | cm$WHO_classification %in% "KMT2A-rearrangement"
+s <- data.frame(
+  sample_id = cm$patientID, participant_id = sub("^([^-]+-[^-]+).*$", "\\1", cm$Case_ID),
+  population = ifelse(num(cm$Consent.age) < 18, "pediatric", "adult"), age_years = num(cm$Consent.age),
+  sex = tolower(cm$Consent.sex), disease_oncotree = "AML", diagnosis = cm$WHO_classification,
+  tissue = c(BMA = "bone_marrow", BM = "bone_marrow", PB = "peripheral_blood")[cm$protein_source],
+  risk_group = risk_of(cm$ELN_classification), risk_classification = "ELN",
+  KMT2A_rearranged = kmt, KMT2A_partner = ifelse(st("KMT2A-MLLT3.mutation.status") %in% TRUE, "MLLT3", NA),
+  cell_state = cm$Primitive_Committed_Classification, stringsAsFactors = FALSE)
+M <- sapply(aml_genes, function(g) st(paste0(g, ".mutation.status"))); rownames(M) <- cm$patientID
+M[, "FLT3"] <- M[, "FLT3"] | st("FLT3_ITD.mutation.status") | st("FLT3_TKD.mutation.status")
+M <- M[, colSums(!is.na(M)) > 0, drop = FALSE]                  # genes not reported stay NA (e.g. U2AF1)
+s <- add_mutations(s, M)
+pg <- read.delim(file.path(CF, "v8/prot_ratio_gene_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv"), check.names = FALSE)
+P  <- collapse_rows(num_matrix(pg, 2:ncol(pg)), pg$Gene_name)
+ps <- read.delim(file.path(CF, "v8/phospho_ratio_signle-site_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv"), check.names = FALSE)
+X  <- num_matrix(ps, 4:ncol(ps)); rownames(X) <- ps$Index
+write_cohort("CPTAC_AML_ADULT", s, list(
+  protein_layer(P, "log2 ratio (TMT, RBC-corrected)", "CPTAC adult AML data freeze v8"),
+  phospho_layer(X, ps$Gene_site, ps$SequenceWindow, "log2 ratio (TMT, RBC-corrected)", "CPTAC adult AML data freeze v8")),
+  extra_groupings = data.frame(column = "cell_state", label = "Cell state (Primitive / Committed)",
+                               true_label = "", false_label = "", kind = "categorical"),
+  notes = "Proteogenomic cohort; protein and phosphosite ratios corrected for red-blood-cell contamination. No survival or drug response in this release.")
 
 # ================================================================ LEE 2018 ==
 cat("LEE_2018\n")
