@@ -3,7 +3,7 @@
 ```
 data/
   cell_lines/      read by prepare_cell_line_data.R
-  patients/        read by prepare_patient_data.R             (planned, one folder per DATASET_ID)
+  patients/        read by prepare_patient_data.R             (one folder per cohort)
   single_cell/     read by prepare_single_cell_RNAseq_data.R  (planned, one folder per DATASET_ID)
 ```
 
@@ -13,6 +13,7 @@ data/
 |---|---|
 | `cell_lines/fig2_MYC_mTOR_DepMap_all_cell_line_classification.tsv` | MYC/mTOR RNA scores and groups, curated KMT2A status (56 lines) |
 | `mito_classification.tsv` | mitochondrial High/Low group per line |
+| `MYC_signature_RNA.tsv`, `mTOR_signature_RNA.tsv` | MYC / mTOR RNA signature genes (from AML_cell_lines) |
 
 ## Raw downloads (gitignored, ~4.3 GB). Place under `data/cell_lines/`:
 
@@ -27,3 +28,16 @@ data/
 
 Downloaded but not yet prepared: `GSE270494/` (EPIC methylation) and `mitoAML/` (cell-line proteome).
 Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lines/`).
+
+## Patient cohorts (gitignored). Place under `data/patients/`:
+
+| folder | DATASET_ID | files used | source |
+|---|---|---|---|
+| `BeatAML/` | `BEAT_AML` | `beataml_wv1to4_clinical.xlsx`, `beataml_waves1to4_norm_exp_dbgap.txt`, `beataml_probit_curve_fits_v4_dbgap.txt`, `beataml_wes_wv1to4_mutations_dbgap.txt`, `beataml_waves1to4_sample_mapping.xlsx`, `beataml.pvc.csv` (Primitive / Committed cell state) | Bottomly et al. 2022 Cancer Cell; biodev.github.io/BeatAML2 |
+| `Nat_Comm_2018/` | `LEE_2018` | `Supp_Data_1.xlsx` (expression, AUC), `Supp_Data_2.xlsx` (drug panel), `Supp_Data_3.xlsx` (clinical) | Lee et al. 2018 Nat Commun, supplementary data |
+| `Blood_Cancer_Discovery_2022/` | `WANG_2022_PED` | `Supp_Table.xlsx` (S2 clinical, S3 samples, S4 drugs, S5 drug profile, S9–S10 panel, S13 RNA CPM) | Wang et al. 2022 Blood Cancer Discov; GSE192638 |
+| `Functional_Precision_Medicine_Tumor_Board_AML/` | `MALANI_2022` | `File_0` (samples), `File_1.1` (clinical), `File_2` (drug library), `File_3.2` (DSS / sDSS), `File_6` (mutations), `File_7` (RNA log2 CPM) | Malani et al. 2022 Cancer Discov, supplementary files |
+
+`prepare_patient_data.R` also reads `cell_lines/DepMap_26Q3/PortalCompounds.csv` for drug targets.
+Not used: `beatAML.rpkm.RDS`, Wang `GSE192638_Gene_count_matrix_updated.txt(.gz)`, Malani `File_3.1`,
+`File_4`, `File_5`, `File_8`, `File_9`.

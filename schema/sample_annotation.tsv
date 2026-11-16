@@ -13,7 +13,15 @@ timepoint	sample	enum	no	timepoint	diagnosis / relapse / remission
 mutations	sample	string	no	HGNC	;-separated HGNC symbols with a damaging/hotspot mutation (e.g. TP53;FLT3)
 KMT2A_rearranged	sample	boolean	no		KMT2A fusion present
 KMT2A_partner	sample	string	no	HGNC	KMT2A fusion partner gene
-ELN2022_risk	sample	enum	no	eln_risk	ELN 2022 risk group (patients)
+risk_group	sample	enum	no	risk_group	Risk group (patients): favorable / intermediate / adverse
+risk_classification	sample	string	no		Which classification gave risk_group (ELN 2017, ELN 2010, cytogenetic)
 treatment_response	sample	enum	no	response	Response to induction (patients)
+diagnosis	sample	string	no		Diagnosis as given by the source
+MYC_score	sample	number	no		MYC RNA signature score (mean z-score of data/MYC_signature_RNA.tsv genes within the dataset)
+mTOR_score	sample	number	no		mTOR RNA signature score (same method)
+MYC_high	sample	boolean	no		MYC score above the dataset median
+mTOR_high	sample	boolean	no		mTOR score above the dataset median
 overall_survival_days	sample	number	no		OS time (patients)
 os_event	sample	boolean	no		Death observed (patients)
+event_free_survival_days	sample	number	no		EFS time (patients)
+efs_event	sample	boolean	no		Event (relapse, refractory disease or death) observed (patients)

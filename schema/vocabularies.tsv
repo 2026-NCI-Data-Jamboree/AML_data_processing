@@ -13,9 +13,11 @@ tissue	cell_line
 timepoint	diagnosis	
 timepoint	relapse	
 timepoint	remission	
-eln_risk	favorable	ELN 2022
-eln_risk	intermediate	ELN 2022
-eln_risk	adverse	ELN 2022
+timepoint	refractory	Primary refractory or resistant disease at sampling
+timepoint	residual	Residual disease after treatment
+risk_group	favorable	ELN (2010 / 2017 / 2022) or cytogenetic risk; version in risk_classification
+risk_group	intermediate	
+risk_group	adverse	
 response	CR	Complete remission
 response	refractory	Primary refractory
 modality	clinical	
