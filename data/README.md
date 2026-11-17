@@ -50,5 +50,19 @@ Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lin
 `prepare_patient_data.R` also reads `cell_lines/DepMap_26Q3/PortalCompounds.csv` for drug targets and
 `reference/hgnc_complete_set.txt` for current gene symbols (HGNC complete set, from
 https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt; gitignored).
-Not used: PTRC RNA files (the RNA is in Beat AML), data freeze PTM (acetyl, glyco, succinyl) and imputed / `all` files, `beatAML.rpkm.RDS`, Wang `GSE192638_Gene_count_matrix_updated.txt(.gz)`, Malani `File_3.1`,
-`File_4`, `File_5`, `File_8`, `File_9`, St. Jude z-scores, GISTIC and ancestry files, AMLmap uncorrected / normalised counts and drug response (Beat AML only).
+Not used: PTRC RNA files (the RNA is in Beat AML), data freeze PTM (acetyl, glyco, succinyl) and imputed / `all` files, `beatAML.rpkm.RDS` (a filtered 15,814-gene RPKM file; it gave implausible deconvolution results), Malani `File_3.1`,
+`File_4`, `File_5`, `File_8`, `File_9`, St. Jude z-scores, GISTIC and ancestry files, AMLmap's `normalised_and_corrected_counts.csv` and its drug response (Beat AML only).
+
+## Inputs for `prepare_deconvolution.py`
+
+Bulk RNA for deconvolution, in addition to the harmonized `results/`:
+
+| File | Used for |
+|---|---|
+| `patients/Blood_Cancer_Discovery_2022/GSE192638_Gene_count_matrix_updated.txt` | Not used. Despite its name it is not a count matrix: its values equal Wang's Table S13 (recorded as CPM; the harmonized layer is `log2(CPM + 0.001)`), which is what `prepare_deconvolution.py` reads, from `results/`. Confirmed CPM by the paper (Wang et al. 2022: "counts per million mapped reads (CPM) values ... Supplementary Table S13"; Partek Flow gene-level counts). TPM, RPKM and FPKM must not be deconvolved |
+| `patients/AMLmap/counts/uncorrected_counts.csv`, `patients/AMLmap/meta.csv` | AMLmap (added 2026-11-17; zip `AMLmap-...zip`): raw integer counts of 1,224 samples from five studies re-processed with one pipeline (60,660 genes, versioned Ensembl IDs; Beat AML 435, Leucegene 399, TCGA 150, TARGET 145, 100LUMC 95). Used for Beat AML and the four temporary `AMLMAP_*` cohorts. Not used: its batch-corrected and normalised count files (not extracted), `scores.csv`, `aberrations/`, `drug_response/` (kept for the upstream processing) |
+| `patients/BeatAML/beataml_waves1to4_counts_dbgap.txt` | Beat AML raw counts from the public biodev `beataml2.0_data` repository (https://github.com/biodev/beataml2.0_data, CC-BY-4.0, Git LFS 122 MB). Used for the first Beat AML run and the blast-percent check; **replaced by the AMLmap counts** so that all cohorts but Wang and Zenodo come from one pipeline |
+| `reference/aml-scatlas.rds` | The deconvolution reference (433 MB, gitignored). Built 2026-11-17 in the jamboree repo (`2026-nci-data-jamboree/analyses/aml-scatlas-reference`, `data/references/aml-scatlas.rds`) from the AML scAtlas AnnData (Whittle et al., eLife 2026, https://doi.org/10.7554/eLife.104978; figshare https://doi.org/10.48420/27269946) with that repo's `build_reference.R`, and copied here by hand |
+| `reference/hgnc_complete_set.txt` | HGNC complete set, also used to map gene symbols to Ensembl IDs (and for marker gene symbols). Record the download date |
+
+Zenodo 14160480 is not deconvolved: it has no raw file and its harmonized RNA layer is `log2(TPM+1)`, i.e. transcript-length-normalized, which must not be used. TPM, RPKM and FPKM are never inputs to deconvolution; counts and CPM are.

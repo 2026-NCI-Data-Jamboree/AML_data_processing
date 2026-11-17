@@ -7,7 +7,7 @@ Harmonized multi-omics leukemia resource, AML first. Three scripts turn the publ
 ```
 prepare_cell_line_data.R           data/cell_lines/  → results/cell_lines/              [working]
 prepare_patient_data.R             data/patients/    → results/patients/<DATASET_ID>/   [working]
-prepare_deconvolution.py           results/ + data/  → deconvolution layers, results/single_cell/<REFERENCE_ID>/ [planned; run last]
+prepare_deconvolution.py           results/ + data/  → deconvolution layers, results/single_cell/<REFERENCE_ID>/ [working; run last]
 data/                              inputs (curated files in git, raw downloads gitignored; data/README.md)
 results/                           processed/harmonized data for the portal (results/README.md; spec in docs/results_contract.md)
 catalog/datasets.tsv               inventory of the integrated datasets
@@ -26,7 +26,7 @@ From the repo root:
 ```bash
 Rscript prepare_cell_line_data.R       # ~ 5 min; needs the raw downloads in data/cell_lines/
 Rscript prepare_patient_data.R         # ~ 5 min; needs perl; needs data/patients/ (and DepMap PortalCompounds.csv for drug targets)
-uv run prepare_deconvolution.py        # run last; ~ 35 s per cohort; needs data/reference/ and the tool's renv (deconvolution/)
+uv run prepare_deconvolution.py        # run last; ~ 10 min for all cohorts; needs data/reference/ and the tool's renv (deconvolution/)
 ```
 
 Each script also copies `catalog/`, `schema/`, `dataset_sources.tsv` and the data README (`docs/results_README.md` → `results/README.md`) into `results/`. To share the results:
@@ -109,3 +109,44 @@ Twelve cohorts, written to `results/patients/<DATASET_ID>/` in the same layout a
   BCOR in LUMC; WT1 in Leucegene). KMT2A from the AMLmap KMT2A diagnosis. Extra groupings: AMLmap cluster,
   WHO 2022, ICC 2022, FAB; `*_like_score` columns hold the AMLmap cell-type scores. OS (days) for TCGA and
   TARGET. TARGET patients may also be in the St. Jude cohort.
+
+## Deconvolution (`prepare_deconvolution.py`)
+
+Estimates the cell type and cell state composition of bulk RNA samples with the tool in `deconvolution/`
+(R, InstaPrism and NNLS; see `deconvolution/README.md`; a copy of the jamboree repo's tool, plus `--bulk-input`) against the
+AML scAtlas reference, and adds the proportions to `results/` as ordinary layers (modality `deconvolution`;
+`docs/results_contract.md`, Deconvolution). **Run it last**: the two `prepare_*.R` scripts wipe their `results/` subfolders.
+
+```bash
+uv run prepare_deconvolution.py                       # all sources
+uv run prepare_deconvolution.py --only BEAT_AML       # one or more sources
+```
+
+| source | bulk input | what the script does with it |
+|---|---|---|
+| `WANG_2022_PED` (48 samples) | `results/patients/WANG_2022_PED/values/expression.tsv.gz`: recorded unit `log2 CPM` (Table S13 "RNA-seq CPM", described as CPM in the paper; minimum is exactly `log2(0.001)`, so `log2(CPM + 0.001)`), protein-coding genes, HGNC symbols | invert with `2^x - 0.001`; map symbols to Ensembl IDs with `data/reference/hgnc_complete_set.txt`; rescale to 1e6; `--bulk-input normalized`; `caution` warning for the converted scale |
+| `BEAT_AML` (AMLmap's Beat AML samples) | `data/patients/AMLmap/counts/uncorrected_counts.csv`: raw integer counts, versioned Ensembl IDs | subset to the cohort's RNA samples (`BA2872R` is `BA2872` in AMLmap), strip version suffixes; `--bulk-input counts` |
+| `TCGA_LAML`, `TARGET_AML`, `LEUCEGENE`, `LUMC_AML` | the same AMLmap counts, one cohort per study (the cohorts `prepare_patient_data.R` makes from AMLmap) | as Beat AML; one run per study |
+
+AMLmap's own processing in `prepare_patient_data.R` uses the batch-corrected counts for the RNA layer; deconvolution uses the raw (`uncorrected_counts.csv`) counts of the same samples. AMLmap's counts are re-processed, so its Beat AML counts are not identical to the earlier biodev file (Spearman about 0.90 per sample).
+
+**Input requirement.** Raw or estimated counts, or linear CPM (library-size normalized only). **Transcript-length-normalized data (TPM, RPKM, FPKM) must not be used**: the reference is built from single-cell counts, which have no gene-length bias, and dividing the bulk by transcript length changes the relative weight of genes. Log-scale values must be inverted to linear first, and only from a CPM unit. A source is judged by the unit recorded for its data (`datasets.tsv`, or the file's documentation): `read_log_expression()` in `prepare_deconvolution.py` accepts only the units in `UNIT_TO_LINEAR` (log2 CPM) and refuses TPM, RPKM and FPKM; the tool has `--bulk-input counts|normalized` (normalized = CPM-like) and cannot detect a wrong unit itself.
+
+Not deconvolved: Zenodo 14160480 (its RNA is `log2(TPM+1)`, TPM, and no counts are available), Wang's raw GEO matrix `GSE192638_Gene_count_matrix_updated.txt` (identical to Table S13, which the paper describes as CPM; the file is named "count matrix", so it is not used directly), cell lines (one line is one cell type), CPTAC and PTRC (no usable RNA; PTRC duplicates Beat AML), Lee 2018
+(microarray, deferred), Malani 2022 (raw counts and log2 CPM exist, but there is no harmonized folder in the current `results/`), St. Jude (not in the current `results/`).
+Beat AML's filtered `beatAML.rpkm.RDS` was tried first and gave implausible compositions; raw counts fixed that, from the biodev file and now from AMLmap.
+
+Per cohort it writes four layers (InstaPrism initial fit at cell type and cell state, InstaPrism updated fit at cell type,
+NNLS at cell type), `deconvolution_runs.tsv` and `deconvolution_warnings.tsv`. Warnings flag, never remove, results:
+low initial malignant proportion (the updated fit may be unreliable), hemoglobin-dominated samples, low share of the
+reference's genes in the bulk matrix, converted input scale (Wang), and warnings from the tool. Thresholds are constants at the top
+of the script. `results/single_cell/aml_scatlas/` gets `reference.tsv`, `markers.tsv` and `provenance.tsv`; the tool's
+run logs, bulk matrices and outputs stay in `deconvolution/runs/` (gitignored).
+
+- **Setup:** `renv::restore()` in `deconvolution/` (R 4.6.2; system libraries for some packages, e.g. `libpng-dev`,
+  `libuv1-dev`, `libharfbuzz-dev`), `data/reference/aml-scatlas.rds` and `data/reference/hgnc_complete_set.txt` (`data/README.md`).
+- **Reference:** everything specific to the reference (ID, `.rds` path, malignant label, citation, limitations) is in one
+  block at the top of the script, so a new reference means rebuilding the `.rds`, editing that block and rerunning.
+- **Adding a cohort:** a `Source` entry and a reader that returns the bulk matrix (Ensembl IDs x the folder's `sample_id`s)
+  in `prepare_deconvolution.py`. `read_log_expression()` already handles a harmonized log layer whose unit is in `UNIT_TO_LINEAR`.
+- **Reference limitation:** the scAtlas malignant profile under-represents monocytic and more committed AML.

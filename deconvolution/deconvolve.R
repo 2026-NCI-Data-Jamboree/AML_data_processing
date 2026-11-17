@@ -47,9 +47,11 @@ option_list <- list(
     dest = "bulk_input",
     default = "counts",
     help = paste(
-      "'counts' (raw counts; non-integers are rounded with a warning) or",
-      "'normalized' (linear CPM/TPM/RPKM-like values, kept as they are; log",
-      "scale is not detected and must not be passed) [default: %default]"
+      "'counts' (raw or estimated counts; non-integers are rounded with a",
+      "warning) or 'normalized' (linear CPM-like values, i.e. library-size",
+      "normalized only, kept as they are). TPM, RPKM and FPKM are",
+      "transcript-length-normalized and must not be used; log scale is not",
+      "detected and must not be passed [default: %default]"
     )
   ),
   make_option(

@@ -207,8 +207,9 @@ round_counts <- function(counts, path) {
       path,
       " are not all integers (",
       sprintf("%.1f%%", 100 * mean(non_integer)),
-      " of non-zero values); rounding. Raw counts are expected: check that ",
-      "a normalised matrix was not read instead.",
+      " of non-zero values); rounding. Raw or estimated counts are expected: ",
+      "transcript-length-normalized values (TPM, RPKM, FPKM) and log-scale ",
+      "values are not valid input; check that one was not read instead.",
       call. = FALSE
     )
     if (methods::is(counts, "sparseMatrix")) {
@@ -235,12 +236,16 @@ strip_version <- function(ids) {
 #' row names). The gene ID type is detected, Ensembl version suffixes are
 #' stripped and duplicate IDs are summed, each with a warning. With
 #' `input = "counts"` non-integer values are rounded, with a warning. With
-#' `input = "normalized"` (linear CPM/TPM/RPKM-like values) the values are kept
-#' as they are. Log-scale values cannot be detected here and must not be passed.
+#' `input = "normalized"` (linear CPM-like values: library-size normalized
+#' only) the values are kept as they are.
+#'
+#' Transcript-length-normalized values (TPM, RPKM, FPKM) are not valid input,
+#' whichever `input` is given, and neither are log-scale values; none of them
+#' can be detected here (apart from the non-integer warning for counts).
 #'
 #' @param path Path to the bulk matrix.
-#' @param input `"counts"` (raw counts, the default) or `"normalized"` (linear
-#'   normalized expression, no rounding).
+#' @param input `"counts"` (raw or estimated counts, the default) or
+#'   `"normalized"` (linear CPM-like values, no rounding).
 #' @return A list with `counts` (numeric matrix, genes x bulk samples, in the
 #'   file's column order), `gene_id_type` (`"ensembl"` or `"symbol"`) and
 #'   `n_genes_read` (rows before duplicates were summed).
@@ -375,13 +380,12 @@ bulk_table_to_matrix <- function(samples, gene_ids, path, sample_ids = NULL) {
   counts
 }
 
-#' Stop on missing or negative values, which neither raw counts nor linear
-#' normalized expression can have
+#' Stop on missing or negative values, which neither counts nor linear CPM can have
 check_bulk_values <- function(counts, path, input = "counts") {
   expected <- if (input == "counts") {
     "raw counts are expected"
   } else {
-    "linear normalized expression is expected"
+    "linear CPM-like values are expected"
   }
   if (nrow(counts) == 0) {
     stop("Bulk file ", path, " has no genes")

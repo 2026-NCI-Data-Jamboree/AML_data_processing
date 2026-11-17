@@ -56,10 +56,14 @@ Small cell types and states are only noted at build time; they are dropped (with
 `deconvolve.R` runs one method on one bulk matrix per call. To compare methods or references, run it again and compare the outputs.
 
 **Bulk input:** a genes × samples count matrix as `.tsv` or `.csv` (first column = gene ID) or `.rds` (matrix or data frame with gene IDs as row names).
-Gene IDs may be Ensembl IDs or symbols; the type is detected, Ensembl version suffixes are stripped, duplicate IDs are summed and each with a warning.
-By default the input is raw counts (e.g. salmon estimated counts) and non-integer values are rounded with a warning.
-With `--bulk-input normalized` the input is linear CPM/TPM/RPKM-like expression, kept as it is (no rounding).
-Log-scale values cannot be detected: convert them to linear before using `normalized`.
+Gene IDs may be Ensembl IDs or symbols; the type is detected, Ensembl version suffixes are stripped, duplicate IDs are summed and non-integer values are rounded, each with a warning.
+
+**Input:** raw or estimated counts (e.g. salmon or RSEM estimated counts), the default (`--bulk-input counts`; non-integer values are rounded with a warning).
+Linear CPM-like values, which are library-size normalized only, are also fine, with `--bulk-input normalized` (kept as they are; no rounding).
+**Do not use transcript-length-normalized data (TPM, RPKM, FPKM), and do not pass log-scale values.**
+The reference is built from single-cell counts, which are not biased by gene length, and the methods model a bulk sample as a mixture of cell type profiles in count space.
+Dividing by transcript length changes the relative weight of genes, so the bulk and the reference no longer match and the proportions are distorted.
+The tool cannot tell length-normalized or log-scale values from counts or CPM (non-integers in `counts` mode only raise the rounding warning), so check the input's units before running.
 The choice is recorded in `run_info.json` (`bulk.input`).
 
 **What happens:**
