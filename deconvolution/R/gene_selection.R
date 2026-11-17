@@ -239,18 +239,18 @@ exclude_gene_categories <- function(harmonised, categories, exclude) {
   harmonised
 }
 
-#' Select marker genes from summed reference profiles
+#' Rank marker genes per label from summed reference profiles
 #'
 #' For each label (column), genes are ranked by log2(CPM + 1) in that label
 #' minus the maximum log2(CPM + 1) over the other labels. Of genes with CPM
 #' above `min_cpm` in the label, the top `n_markers` are taken, keeping those
-#' whose difference exceeds `min_log2_diff`. Returns the union over labels.
-#' CPM is computed over the genes passed in, so call this after gene
-#' category exclusion.
+#' whose difference exceeds `min_log2_diff`. CPM is computed over the genes
+#' passed in, so call this after gene category exclusion.
 #'
 #' @param counts Summed counts, genes x labels (at the level being fitted).
-#' @return Marker gene names (row names of `counts`), in row order.
-select_markers <- function(
+#' @return data.frame(label, rank, gene, score), `score` being the log2(CPM + 1)
+#'   difference; zero rows if no label has a marker.
+rank_markers <- function(
   counts,
   n_markers,
   min_cpm = 20,
@@ -263,7 +263,7 @@ select_markers <- function(
   cpm <- sweep(counts, 2, colSums(counts), "/") * 1e6
   log_cpm <- log2(cpm + 1)
 
-  markers <- character(0)
+  ranked <- vector("list", ncol(counts))
   for (j in seq_len(ncol(counts))) {
     diff <- log_cpm[, j] - matrixStats::rowMaxs(log_cpm[, -j, drop = FALSE])
     diff[cpm[, j] <= min_cpm] <- -Inf
@@ -276,7 +276,29 @@ select_markers <- function(
         call. = FALSE
       )
     }
-    markers <- union(markers, rownames(counts)[top])
+    ranked[[j]] <- data.frame(
+      label = rep(colnames(counts)[j], length(top)),
+      rank = seq_along(top),
+      gene = rownames(counts)[top],
+      score = unname(diff[top])
+    )
   }
+  do.call(rbind, ranked)
+}
+
+#' Select marker genes from summed reference profiles
+#'
+#' The union over labels of the genes chosen by rank_markers().
+#'
+#' @inheritParams rank_markers
+#' @return Marker gene names (row names of `counts`), in row order.
+select_markers <- function(
+  counts,
+  n_markers,
+  min_cpm = 20,
+  min_log2_diff = 0.5
+) {
+  ranked <- rank_markers(counts, n_markers, min_cpm, min_log2_diff)
+  markers <- unique(ranked$gene)
   rownames(counts)[rownames(counts) %in% markers]
 }
