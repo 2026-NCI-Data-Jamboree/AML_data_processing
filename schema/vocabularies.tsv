@@ -34,3 +34,4 @@ modality	drug_screen
 modality	crispr_dependency	
 modality	rnai_dependency	
 modality	copy_number	Gene-level relative copy number
+modality	deconvolution	Estimated cell type or cell state proportions from bulk RNA (unit proportion)

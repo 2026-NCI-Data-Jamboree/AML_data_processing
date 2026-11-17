@@ -7,7 +7,7 @@ Harmonized multi-omics leukemia resource, AML first. Three R scripts turn the pu
 ```
 prepare_cell_line_data.R           data/cell_lines/  → results/cell_lines/              [working]
 prepare_patient_data.R             data/patients/    → results/patients/<DATASET_ID>/   [working]
-prepare_single_cell_RNAseq_data.R  data/single_cell/ → results/single_cell/<DATASET_ID>/ [planned]
+prepare_deconvolution.R            results/ + data/  → deconvolution layers, results/single_cell/<REFERENCE_ID>/ [planned; run last]
 data/                              inputs (curated files in git, raw downloads gitignored; data/README.md)
 results/                           processed/harmonized data for the portal (results/README.md; spec in docs/results_contract.md)
 catalog/datasets.tsv               inventory of the integrated datasets
