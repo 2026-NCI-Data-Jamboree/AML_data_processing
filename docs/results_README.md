@@ -28,6 +28,7 @@ results/
   schema/                   harmonized annotation fields and allowed values (see schema/README.md)
   cell_lines/               all AML cell lines, one folder
   patients/<DATASET_ID>/    one folder per patient cohort
+  single_cell/<REFERENCE_ID>/  the single-cell reference used for deconvolution (see Deconvolution)
 ```
 
 Each data folder (`cell_lines/`, and each `patients/<DATASET_ID>/`) has the same files:
@@ -63,6 +64,34 @@ All tables are tab-separated with a header row. Empty cells mean missing. `.tsv.
 
 Each cohort's `provenance.tsv` has notes on how it was processed. References, sources and accessions are in
 `dataset_sources.tsv`.
+
+## Deconvolution
+
+Cell type and cell state proportions of the bulk RNA samples in some cohorts, estimated against the AML scAtlas
+single-cell reference (bone marrow, diagnosis samples). They are added by `prepare_deconvolution.py` as ordinary
+layers of the cohort (modality `deconvolution`, unit `proportion`), so they join with every other layer by `sample_id`.
+
+- **Layers:** `values/deconv_<reference>_<method>_<level>.tsv.gz`, e.g. `deconv_aml_scatlas_instaprism_cell_type`.
+  Rows are cell types or cell states, columns are samples, proportions sum to 1 per sample. Methods: InstaPrism initial
+  fit (cell type and cell state), InstaPrism updated fit (cell type; depends on the other samples in the cohort) and NNLS
+  (cell type).
+- **`deconvolution_runs.tsv`:** one row per layer: method, level, quantity (`mrna_share`: share of the sample's mRNA, not of
+  cells), settings, input source and conversion, run date.
+- **`deconvolution_warnings.tsv`:** flags on a run, a sample or a label, with a severity (`info`, `warning`, `caution`)
+  and a code: low initial malignant proportion (the updated fit may be unreliable), hemoglobin-dominated samples, low share
+  of the reference's genes in the bulk matrix, converted input scale, batch dependence. The `key` column names the layer
+  (empty = every layer of the cohort). Warnings flag a result; the values are always kept.
+- **`single_cell/<REFERENCE_ID>/`:** `reference.tsv` (cells and reference samples per cell type and state),
+  `markers.tsv` (top marker genes per label) and `provenance.tsv` (citation, build, limitations).
+- **Cohorts:** `BEAT_AML`, `MALANI_2022`, `WANG_2022_PED`, `AML_STJUDE_2024`, `TCGA_LAML`, `TARGET_AML`, `LEUCEGENE`,
+  `LUMC_AML`.
+- **Input:** raw counts (Beat AML and the AMLmap cohorts from AMLmap's uncorrected counts; Malani from its raw reads) or
+  counts per million converted back from a log2 layer (Wang; St. Jude, whose values were batch-corrected after the CPM
+  step and are only approximately CPM). **Transcript-length-normalized data (TPM, RPKM, FPKM) is never used**, so
+  cohorts with only such data (Zenodo 14160480) and cell lines are not deconvolved.
+- **Read with care:** the scAtlas malignant profile under-represents monocytic and more committed AML, and the proportions are
+  estimates, not measurements (in Beat AML the malignant proportion tracks the clinical blast percentage, Spearman 0.4-0.5,
+  but is not calibrated).
 
 ## Cell lines
 
