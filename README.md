@@ -1,13 +1,13 @@
 # AML data jamboree: data processing
 
-Harmonized multi-omics leukemia resource, AML first. Three R scripts turn the public datasets in
+Harmonized multi-omics leukemia resource, AML first. Three scripts turn the public datasets in
 `data/` into processed, harmonized data in `results/`. The web portal
 ([AML_data_visualization](../AML_data_visualization), Python/Streamlit) reads only `results/`.
 
 ```
 prepare_cell_line_data.R           data/cell_lines/  → results/cell_lines/              [working]
 prepare_patient_data.R             data/patients/    → results/patients/<DATASET_ID>/   [working]
-prepare_deconvolution.R            results/ + data/  → deconvolution layers, results/single_cell/<REFERENCE_ID>/ [planned; run last]
+prepare_deconvolution.py           results/ + data/  → deconvolution layers, results/single_cell/<REFERENCE_ID>/ [planned; run last]
 data/                              inputs (curated files in git, raw downloads gitignored; data/README.md)
 results/                           processed/harmonized data for the portal (results/README.md; spec in docs/results_contract.md)
 catalog/datasets.tsv               inventory of the integrated datasets
@@ -16,11 +16,17 @@ schema/                            harmonized study/sample annotation (OncoTree,
 
 ## Run
 
+Environments: the deconvolution tool in `deconvolution/` has its own renv (R 4.6.2, Bioconductor, InstaPrism): start R
+there and run `renv::restore()` once. `prepare_deconvolution.py` is a Python script with inline dependencies (pandas),
+run by [uv](https://docs.astral.sh/uv/). The two `prepare_*.R` scripts need `xml2` and have no renv (a repo-root renv
+can be added later).
+
 From the repo root:
 
 ```bash
 Rscript prepare_cell_line_data.R       # ~ 5 min; needs the raw downloads in data/cell_lines/
 Rscript prepare_patient_data.R         # ~ 5 min; needs perl; needs data/patients/ (and DepMap PortalCompounds.csv for drug targets)
+uv run prepare_deconvolution.py        # run last; ~ 35 s per cohort; needs data/reference/ and the tool's renv (deconvolution/)
 ```
 
 Each script also copies `catalog/`, `schema/`, `dataset_sources.tsv` and the data README (`docs/results_README.md` → `results/README.md`) into `results/`. To share the results:
