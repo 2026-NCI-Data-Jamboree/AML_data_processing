@@ -17,6 +17,7 @@
 #   MALANI_2022    Malani et al. 2022 Cancer Discov (FPM)          RNA-seq, panel, 515 drugs (DSS, sDSS)
 # RNA-only cohort (no drug response):
 #   AML_STJUDE_2024  Umeda et al. 2024 Nat Genet (pediatric)       RNA-seq, WGS / WES, fusions
+#   TCGA_LAML, TARGET_AML, LEUCEGENE, LUMC_AML  AMLmap compendium   RNA-seq (batch-corrected), mutations
 #
 # Harmonization
 #   genes     current HGNC symbols (previous symbols and aliases mapped; data/reference/hgnc_complete_set.txt);
@@ -720,6 +721,71 @@ write_cohort("AML_STJUDE_2024", s, list(expr_layer(E, "RNA expression", "log2 CP
                 "Mutations from WGS / WES for 665 of 887 samples (somatic calls; FLT3-ITD from the structural variant",
                 "calls). KMT2A from the molecular category or a KMT2A fusion. No risk group, survival or drug response.",
                 "Includes TARGET and other published cohorts, so some patients may also appear in Wang 2022."))
+
+# ================================================ AMLmap: TCGA, TARGET, Leucegene, LUMC ==
+# AMLmap compendium (data/patients/AMLmap): RNA-seq counts corrected for study / library batch across five
+# studies, clinical annotation, mutations and fusions. The Beat AML part is not used (Beat AML is processed
+# above from its own release). Each of the other four studies becomes its own cohort.
+cat("AMLmap\n")
+A <- file.path(dd, "AMLmap")
+am <- read.csv(file.path(A, "meta.csv"), check.names = FALSE, na.strings = c("NA", ""), colClasses = "character")
+amlmap_studies <- c(TCGA_AML = "TCGA_LAML", TARGET_AML = "TARGET_AML", LEUCEGENE_AML = "LEUCEGENE", "100LUMC_AML" = "LUMC_AML")
+am <- am[am$study %in% names(amlmap_studies), ]
+# RNA: batch-corrected counts -> log2(CPM + 1); Ensembl IDs (versioned) -> current HGNC symbols
+cnt <- read.csv(file.path(A, "counts/corrected_counts.csv"), check.names = FALSE, row.names = 1)
+cnt <- as.matrix(cnt[, colnames(cnt) %in% am$sample_id]); storage.mode(cnt) <- "double"
+cpm <- log2(t(t(cnt) / colSums(cnt, na.rm = TRUE)) * 1e6 + 1)
+E_all <- collapse_rows(cpm, ensembl_symbol(sub("\\..*$", "", rownames(cpm)))); rm(cnt, cpm)
+# mutations: protein-altering variants at VAF >= 5% (VAF missing: kept), plus hotspot / ITD columns
+ab <- read.csv(file.path(A, "aberrations/aberrations_oh.csv"), check.names = FALSE, row.names = 1)
+mu <- read.csv(file.path(A, "aberrations/mutations.csv"), colClasses = "character")
+not_altering <- c("Silent", "RNA", "Intron", "3'UTR", "5'UTR", "Splice_Region", "3'Flank", "5'Flank", "IGR", "Splicing&Intron")
+mu <- mu[!sub("\\(.*$", "", mu$variant) %in% not_altering & (is.na(num(mu$VAF)) | num(mu$VAF) >= 0.05), ]
+hot <- list(IDH1 = "IDH1_R132", IDH2 = c("IDH2_R140", "IDH2_R172"), DNMT3A = "DNMT3A_R882",
+            FLT3 = c("FLT3_ITD", "FLT3_TKD"), NPM1 = "NPM1")
+sc <- read.csv(file.path(A, "scores.csv"), check.names = FALSE)
+names(sc)[-1] <- gsub("[^a-z0-9]+", "_", tolower(names(sc)[-1]))        # e.g. hsc_like_score, hla_ii_score
+for (st0 in names(amlmap_studies)) {
+  id <- amlmap_studies[[st0]]; cat(id, "\n")
+  x <- am[am$study == st0, ]
+  kdx <- x$KMT2A_diagnosis
+  kany <- num(ab[x$sample_id, "any_KMT2A"])
+  s <- data.frame(
+    sample_id = x$sample_id, participant_id = x$sample_id,
+    population = if (id == "TARGET_AML") "pediatric" else ifelse(num(x$age) < 18, "pediatric", "adult"),
+    age_years = round(num(x$age), 1), sex = tolower(x$sex), disease_oncotree = ifelse(grepl("PML.?RARA", x$WHO_2022) | x$FAB %in% "M3", "APLPMLRARA", "AML"),
+    diagnosis = x$WHO_2022,
+    tissue = c("bone marrow" = "bone_marrow", "peripheral blood" = "peripheral_blood")[x$tissue],
+    timepoint = ifelse(x$prim_rec %in% "Primary", "diagnosis", NA),
+    KMT2A_rearranged = ifelse(kdx %in% "no_KMT2A", FALSE, ifelse(grepl("^KMT2A_|^Other KMT2A$|^multi$", kdx), TRUE,
+                              ifelse(is.na(kany), NA, kany > 0))),
+    KMT2A_partner = ifelse(grepl("^KMT2A_", kdx), to_hgnc(sub("^KMT2A_", "", kdx)), NA),
+    overall_survival_days = round(num(x$survival_years) * 365.25),
+    os_event = c(Dead = TRUE, Alive = FALSE)[x$event],
+    amlmap_cluster = x$clusters, who_2022 = x$WHO_2022, icc_2022 = x$ICC_2022, FAB = x$FAB,
+    stringsAsFactors = FALSE)
+  s$sex[!s$sex %in% c("female", "male")] <- NA
+  s <- cbind(s, sc[match(s$sample_id, sc$sample_id), -1, drop = FALSE])
+  m1 <- mu[mu$sample_id %in% s$sample_id, ]
+  M <- mut_matrix(s$sample_id, aml_genes, m1$sample_id, m1$gene_id)
+  for (g in names(hot)) M[, g] <- M[, g] | rowSums(as.matrix(ab[s$sample_id, hot[[g]], drop = FALSE]) > 0, na.rm = TRUE) > 0
+  M[, colSums(M) == 0] <- NA                      # no call at all in this study: gene treated as not assayed
+  s <- add_mutations(s, M)
+  E <- E_all[, colnames(E_all) %in% s$sample_id, drop = FALSE]
+  s <- add_signatures(s, E)
+  write_cohort(id, s, list(expr_layer(E, "RNA expression", "log2(CPM+1), batch-corrected counts", "AMLmap")),
+    extra_groupings = data.frame(column = c("amlmap_cluster", "who_2022", "icc_2022", "FAB"),
+                                 label = c("AMLmap cluster", "WHO 2022 class", "ICC 2022 class", "FAB subtype"),
+                                 true_label = "", false_label = "", kind = "categorical"),
+    notes = paste0(c(TCGA_LAML = "TCGA LAML", TARGET_AML = "TARGET AML (pediatric)", LEUCEGENE = "Leucegene",
+                     LUMC_AML = "LUMC 100 AML")[[id]], ", from the AMLmap compendium. RNA from counts corrected for ",
+                   "study and library batch, as log2(CPM+1). Mutations: protein-altering calls at VAF >= 5% plus ",
+                   "FLT3-ITD / TKD, NPM1, IDH1/2 and DNMT3A R882 hotspot calls; genes with no call in the study are ",
+                   "treated as not assayed. KMT2A from the AMLmap KMT2A diagnosis.",
+                   if (id %in% c("TCGA_LAML", "TARGET_AML")) " Overall survival in days." else " No survival data.",
+                   if (id == "TARGET_AML") " Some patients may also be in the St. Jude cohort (IDs cannot be matched)." else ""))
+}
+rm(E_all)
 
 # shared metadata the portal reads alongside the data
 for (d in c("catalog", "schema")) { unlink(file.path("results", d), recursive = TRUE)

@@ -44,7 +44,7 @@ automatically, or you can set `AML_PORTAL_DATA=/path/to/results`.
 
 ## Patient data (`prepare_patient_data.R`)
 
-Eight cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
+Twelve cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
 (one column per sample in `values/`):
 
 | DATASET_ID | cohort | samples / patients | layers | survival |
@@ -56,6 +56,10 @@ Eight cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as
 | `PTRC_BEAT_AML` | Beat AML proteomics, OHSU / PNNL PTRC (Pino et al. 2024) | 210 / 210 | protein (210), phosphosites (210), drug AUC from Beat AML (167) | OS (from Beat AML) |
 | `CPTAC_AML_ADULT` | CPTAC adult AML, data freeze v8 (Chu et al. 2026) | 162 / 162 | protein (162), phosphosites (162) | none |
 | `AML_STJUDE_2024` | St. Jude pediatric AML (Umeda et al. 2024 Nat Genet), cBioPortal | 887 / 887 | RNA (887) | none |
+| `TCGA_LAML` | TCGA LAML, from the AMLmap compendium | 150 / 150 | RNA (150) | OS |
+| `TARGET_AML` | TARGET AML (pediatric), from the AMLmap compendium | 145 / 145 | RNA (145) | OS |
+| `LEUCEGENE` | Leucegene, from the AMLmap compendium | 399 / 399 | RNA (399) | none |
+| `LUMC_AML` | LUMC AML, from the AMLmap compendium | 95 / 95 | RNA (95) | none |
 | `ZENODO_14160480` | AML proteogenomics, Zenodo record 14160480 (374 newly diagnosed) | 374 / 374 | RNA (361), protein (374), phosphosites (217), drug IC50, 41 drugs (102) | OS, EFS |
 
 - **Annotation** (`schema/sample_annotation.tsv`): population, age, sex, OncoTree code, tissue,
@@ -92,3 +96,10 @@ Eight cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as
   the molecular category or a KMT2A fusion (partner from the SV file). Extra groupings: molecular category
   (KMT2Ar, RUNX1::RUNX1T1, CBFB::MYH11, NUP98r, UBTF, ...) and FAB. No risk group, survival or drug
   response. 157 samples come from TARGET, and some patients may overlap Wang 2022 (IDs cannot be matched).
+- **AMLmap (TCGA, TARGET, Leucegene, LUMC):** one compendium (`data/patients/AMLmap`), split into one cohort per
+  study; its Beat AML samples are not used. RNA = log2(CPM+1) of the counts AMLmap corrected for study and
+  library batch. Mutations = protein-altering calls at VAF >= 5% plus the FLT3-ITD / TKD, NPM1, IDH1/2 and
+  DNMT3A R882 hotspot columns; a gene with no call in a study is treated as not assayed (e.g. KRAS, SRSF2,
+  BCOR in LUMC; WT1 in Leucegene). KMT2A from the AMLmap KMT2A diagnosis. Extra groupings: AMLmap cluster,
+  WHO 2022, ICC 2022, FAB; `*_like_score` columns hold the AMLmap cell-type scores. OS (days) for TCGA and
+  TARGET. TARGET patients may also be in the St. Jude cohort.

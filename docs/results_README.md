@@ -9,7 +9,7 @@ cohorts and cell lines can be analysed side by side:
 
 - **70 AML cell lines** with 11 data types: RNA, CRISPR and RNAi dependency, three drug screens, methylation,
   miRNA, chromatin marks and metabolomics.
-- **8 patient cohorts**, adult and pediatric: 2,923 samples from 2,544 patients, with RNA, protein,
+- **12 patient cohorts**, adult and pediatric: 3,712 samples from 3,333 patients, with RNA, protein,
   phosphosites, mutations, clinical data and ex vivo drug response.
 
 The data was produced by `prepare_cell_line_data.R` and `prepare_patient_data.R` in
@@ -56,6 +56,10 @@ All tables are tab-separated with a header row. Empty cells mean missing. `.tsv.
 | `MALANI_2022` | FPM tumor board (Malani et al. 2022) | adult | 252 / 186 | RNA (163); DSS and sDSS, 515 drugs (164) | OS, EFS |
 | `WANG_2022_PED` | Pediatric AML pharmacogenomics (Wang et al. 2022) | pediatric | 66 / 57 | RNA (48); drug AUC, 45 drugs (61) | EFS |
 | `AML_STJUDE_2024` | St. Jude pediatric AML (Umeda et al. 2024) | pediatric | 887 / 887 | RNA (887) | none |
+| `TCGA_LAML` | TCGA LAML (from the AMLmap compendium) | adult | 150 / 150 | RNA (150) | OS |
+| `TARGET_AML` | TARGET AML (from the AMLmap compendium) | pediatric | 145 / 145 | RNA (145) | OS |
+| `LEUCEGENE` | Leucegene (from the AMLmap compendium) | adult | 399 / 399 | RNA (399) | none |
+| `LUMC_AML` | LUMC AML (from the AMLmap compendium) | adult | 95 / 95 | RNA (95) | none |
 
 Each cohort's `provenance.tsv` has notes on how it was processed. References, sources and accessions are in
 `dataset_sources.tsv`.
@@ -143,7 +147,7 @@ drugs <- read.delim(file.path(d, "features/drug_auc.tsv"))   # names, targets, c
 - Some cohorts include more than one sample per patient, for example diagnosis and relapse. Use
   `participant_id` and `timepoint` to keep one sample per patient.
 - Some pediatric samples may appear in more than one cohort:
-  - The St. Jude cohort includes samples from TARGET.
+  - The St. Jude cohort includes samples from TARGET, which is also a cohort of its own here.
   - The St. Jude cohort and Wang 2022 both come from St. Jude, so they may share patients.
   - The patient IDs cannot be matched between these cohorts.
 - Please cite the original publications listed in `dataset_sources.tsv` when you use a cohort.
