@@ -23,7 +23,7 @@ RUN LAST: prepare_cell_line_data.R and prepare_patient_data.R wipe their results
 Run from the repo root. Inputs: data/reference/aml-scatlas.rds, data/reference/hgnc_complete_set.txt and the
 raw files named in SOURCES. The tool's renv must be restored first (deconvolution/README.md).
 
-Sources done so far: WANG_2022_PED. To do: BEAT_AML, ZENODO_14160480, cell_lines (log inversion and
+Sources done so far: WANG_2022_PED, BEAT_AML. To do: ZENODO_14160480, cell_lines (log inversion and
 symbol -> Ensembl mapping with HGNC), MALANI_2022 (once harmonized).
 """
 
@@ -116,6 +116,22 @@ def read_wang(sample_ids: list[str]) -> Bulk:
     )
 
 
+def read_beat_aml(sample_ids: list[str]) -> Bulk:
+    path = Path("data/patients/BeatAML/beatAML.rpkm.RDS")
+    tsv = RUNS_DIR / "beatAML.rpkm.tsv.gz"  # Python cannot read .RDS: convert once with base R
+    if not tsv.exists() or tsv.stat().st_mtime < path.stat().st_mtime:
+        tsv.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["Rscript", "convert_rds_to_tsv.R", str(path), str(tsv)], check=True)
+    table = pd.read_csv(tsv, sep="\t").set_index("gene_id")
+    matrix = table[[s for s in sample_ids if s in table.columns]].astype(float)
+    return Bulk(
+        rescale(matrix),
+        str(path),
+        "none (linear RPKM rescaled to 1e6 per sample)",
+        "normalized",
+    )
+
+
 @dataclass
 class Source:
     dataset_id: str
@@ -127,6 +143,7 @@ class Source:
 
 SOURCES = [
     Source("WANG_2022_PED", Path("results/patients/WANG_2022_PED"), "sample_id", "n_samples", read_wang),
+    Source("BEAT_AML", Path("results/patients/BEAT_AML"), "sample_id", "n_samples", read_beat_aml),
 ]
 
 
@@ -173,11 +190,10 @@ def read_hgnc() -> tuple[pd.DataFrame, str]:
 
 def warning_rows(severity: str, code: str, message, source: str, key="", scope="run", sample_id="") -> pd.DataFrame:
     """Rows for deconvolution_warnings.tsv; key, sample_id and message may be scalars or lists."""
-    return pd.DataFrame(
-        {"key": key, "scope": scope, "sample_id": sample_id, "label": "", "severity": severity,
-         "code": code, "message": message, "source": source},
-        columns=WARNING_COLUMNS,
-    )
+    fields = {"key": key, "scope": scope, "sample_id": sample_id, "label": "", "severity": severity,
+              "code": code, "message": message, "source": source}
+    n_rows = max((len(v) for v in fields.values() if isinstance(v, list)), default=1)
+    return pd.DataFrame(fields, index=range(n_rows), columns=WARNING_COLUMNS)
 
 
 def classify_tool_warning(message: str) -> tuple[str, str]:
