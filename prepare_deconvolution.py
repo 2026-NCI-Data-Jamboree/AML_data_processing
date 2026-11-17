@@ -26,12 +26,15 @@ raw files named in SOURCES. The tool's renv must be restored first (deconvolutio
 INPUT: raw or estimated counts, or linear CPM (library-size normalized only). Transcript-length-normalized data
 (TPM, RPKM, FPKM) and log-scale values must not be deconvolved: the reference is built from counts, and dividing by
 transcript length changes the relative weight of genes. A source is judged by the unit recorded for its data
-(datasets.tsv `unit`, or the file's documentation); read_log_expression() refuses TPM, RPKM and FPKM and any
-unit that is not in UNIT_TO_LINEAR. Zenodo 14160480 (log2(TPM+1)) is therefore not a source, nor is Wang's raw GEO
-matrix (TPM-like); Wang is deconvolved from its harmonized log2 CPM layer instead.
+(datasets.tsv `unit`, or the file's documentation); read_log_expression() refuses TPM, RPKM and FPKM and any unit
+that is not in CPM_UNITS. Zenodo 14160480 (log2(TPM+1)) is therefore not a source.
 
-Sources: WANG_2022_PED (harmonized log2 CPM); BEAT_AML, TCGA_LAML, TARGET_AML, LEUCEGENE and LUMC_AML (the AMLmap
-studies), from AMLmap's raw counts (uncorrected_counts.csv; the batch-corrected counts only feed the RNA layer). To do: MALANI_2022 (raw counts and log2 CPM exist; needs a harmonized folder), LEE_2018 (microarray).
+Sources:
+  raw counts   BEAT_AML, TCGA_LAML, TARGET_AML, LEUCEGENE, LUMC_AML (AMLmap's uncorrected_counts.csv; the batch-
+               corrected counts only feed the RNA layer) and MALANI_2022 (File_8 raw read counts)
+  log2 CPM     WANG_2022_PED (Table S13, CPM per the paper; log2(CPM + 0.001)) and AML_STJUDE_2024 (voom log2(CPM),
+               then ComBat-corrected: approximate, flagged `caution`), inverted from the harmonized layer
+Not sources: ZENODO_14160480 (TPM), LEE_2018 (microarray).
 Cell lines are not deconvolved: a line is one cell type, so proportions say nothing.
 """
 
@@ -143,30 +146,41 @@ def read_amlmap(study: str, amlmap_id: Callable[[str], str] = lambda sample_id: 
     return read
 
 
-# The harmonized layers' units that can be deconvolved, inverted to linear CPM. Only library-size-normalized
-# units belong here. The pseudocount is not in the unit string: Wang's layer (Table S13) has its minimum at exactly
-# log2(0.001) for 6.35% of the entries, so it is log2(CPM + 0.001).
-UNIT_TO_LINEAR = {"log2 CPM": lambda x: np.exp2(x) - 0.001}
+MALANI_COUNTS = Path("data/patients/Functional_Precision_Medicine_Tumor_Board_AML/File_8_RNA_seq_Raw_Reads_163S_4Healthy.csv")
+
+
+def read_malani(sample_ids: list[str], hgnc: pd.DataFrame) -> Bulk:
+    """Malani 2022 raw read counts (163 AML samples, 4 healthy CD34+ controls that are not in the cohort)."""
+    header = pd.read_csv(MALANI_COUNTS, nrows=0).columns  # first column: Ensembl ID, then one column per sample
+    wanted = [s for s in sample_ids if s in header]
+    counts = pd.read_csv(MALANI_COUNTS, index_col=0, usecols=[header[0], *wanted]).astype(float)
+    return Bulk(counts, str(MALANI_COUNTS), "none (raw integer counts)", "counts")
+
+
+# The harmonized units that can be deconvolved after inverting to linear CPM: library-size-normalized only. The
+# pseudocount is not in the unit string, so each cohort states its own (see the sources below).
+CPM_UNITS = {"log2 CPM"}
 LENGTH_NORMALIZED = re.compile(r"\b(TPM|RPKM|FPKM)\b", re.IGNORECASE)
 GENE_LOSS_WARNING = 0.05  # warning (not info) if more than this share of genes cannot be mapped
 
 
-def read_log_expression(folder: Path) -> Callable[[list[str], pd.DataFrame], Bulk]:
-    """Reader for a folder's harmonized expression layer when its recorded unit is a log-scale CPM: invert it,
-    map the symbol-keyed genes to Ensembl IDs, sum genes that share an ID and rescale to 1e6 per sample.
-    Refuses TPM, RPKM and FPKM, and any unit that is not in UNIT_TO_LINEAR."""
+def read_log_expression(folder: Path, pseudocount: float, caveat: str = "") -> Callable:
+    """Reader for a folder's harmonized expression layer when its recorded unit is a log2 CPM: invert it with
+    `2^x - pseudocount`, map the symbol-keyed genes to Ensembl IDs, sum genes that share an ID and rescale to
+    1e6 per sample. Refuses TPM, RPKM and FPKM, and any unit that is not in CPM_UNITS. `caveat` is added to the
+    `caution` warning when the layer was processed further after the CPM step."""
 
     def read(sample_ids: list[str], hgnc: pd.DataFrame) -> Bulk:
         unit = read_tsv(folder / "datasets.tsv").set_index("key").loc["expression", "unit"]
         if LENGTH_NORMALIZED.search(unit):
             raise ValueError(f"{folder}: the expression unit '{unit}' is transcript-length-normalized and must not be "
                              "deconvolved; use counts or CPM")
-        if unit not in UNIT_TO_LINEAR:
+        if unit not in CPM_UNITS:
             raise ValueError(f"{folder}: no conversion to linear CPM for the expression unit '{unit}'")
         features = read_tsv(folder / "features" / "expression.tsv").set_index("feature")
         values = pd.read_csv(folder / "values" / "expression.tsv.gz", sep="\t", index_col=0)
         values = values[[s for s in sample_ids if s in values.columns]]
-        linear = UNIT_TO_LINEAR[unit](values.astype(float)).clip(lower=0)
+        linear = (np.exp2(values.astype(float)) - pseudocount).clip(lower=0)
 
         mapped = symbols_to_ensembl(features.loc[linear.index, "gene_symbol"], hgnc)
         resolved = mapped["ensembl"] != ""
@@ -177,7 +191,7 @@ def read_log_expression(folder: Path) -> Callable[[list[str], pd.DataFrame], Bul
             ("caution", "log_scale_input",
              f"The input is on the {unit} scale and was converted to linear CPM before deconvolution; the "
              "conversion is only as exact as the recorded unit and pseudocount, and the layer's gene filtering "
-             "(protein-coding genes) means the rescaled values are not the original CPM."),
+             "(protein-coding genes) means the rescaled values are not the original CPM. " + caveat),
             ("warning" if lost > GENE_LOSS_WARNING else "info", "gene_mapping_loss",
              f"{(~resolved).sum()} of {len(resolved)} genes ({100 * lost:.1f}%) could not be mapped to a single Ensembl "
              f"ID with HGNC and were dropped (resolved by: {', '.join(f'{n} {s}' for s, n in steps.items())}); "
@@ -186,7 +200,7 @@ def read_log_expression(folder: Path) -> Callable[[list[str], pd.DataFrame], Bul
         return Bulk(
             rescale(by_ensembl),
             f"{folder}/values/expression.tsv.gz",
-            f"inverted from {unit} with 2^x - 0.001; symbols mapped to Ensembl IDs with HGNC; rescaled to 1e6 per sample",
+            f"inverted from {unit} with 2^x - {pseudocount:g}; symbols mapped to Ensembl IDs with HGNC; rescaled to 1e6 per sample",
             "normalized",
             notes,
         )
@@ -206,7 +220,17 @@ class Source:
 SOURCES = [
     # Wang's harmonized layer is log2 CPM; its raw GEO matrix is TPM-like and is not used
     Source("WANG_2022_PED", Path("results/patients/WANG_2022_PED"), "sample_id", "n_samples",
-           read_log_expression(Path("results/patients/WANG_2022_PED"))),
+           read_log_expression(Path("results/patients/WANG_2022_PED"), pseudocount=0.001)),
+    # St. Jude: voom log2(CPM) (Umeda et al. 2024: "The count data were transformed to log2(cpm) using Voom"), then
+    # corrected with ComBat for library strand and for the TARGET batch. Voom's own prior is ~0.01 CPM, so none is
+    # subtracted; the ComBat step cannot be undone without its parameters, hence the caveat.
+    Source("AML_STJUDE_2024", Path("results/patients/AML_STJUDE_2024"), "sample_id", "n_samples",
+           read_log_expression(
+               Path("results/patients/AML_STJUDE_2024"), pseudocount=0.0,
+               caveat="St. Jude's values are voom log2(CPM) after ComBat correction for library strand and the TARGET "
+                      "batch (Umeda et al. 2024), so they are only approximately CPM (values reach -13.6, below voom's "
+                      "floor); the batch correction cannot be undone.")),
+    Source("MALANI_2022", Path("results/patients/MALANI_2022"), "sample_id", "n_samples", read_malani),
     # Beat AML RNA samples end in "R" in the folder and have no suffix in AMLmap
     Source("BEAT_AML", Path("results/patients/BEAT_AML"), "sample_id", "n_samples",
            read_amlmap("BEAT_AML", lambda sid: sid.removesuffix("R") if sid.endswith("R") else "")),
