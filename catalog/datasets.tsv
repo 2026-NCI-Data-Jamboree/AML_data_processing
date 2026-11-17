@@ -16,3 +16,5 @@ DEMETER2_V6	DEMETER2 RNAi	cell_line	mixed	rnai_dependency	McFarland et al. 2018 
 DEPMAP_DRUG_HARMONIZED	DepMap harmonized drug screens (PRISM, CTRP, GDSC)	cell_line	mixed	drug_screen		DepMap portal		cell_line_variability	processed	
 CCLE_2019	CCLE miRNA, chromatin, metabolomics	cell_line	mixed	mirna;chromatin;metabolomics	Li et al. 2019 Nat Med; Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed	
 CCLE_RRBS	CCLE RRBS methylation	cell_line	mixed	methylation	Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed	
+GEORGE_2026_SURFACEOME	Leukemia cell-line surfaceome (surface biotinylation proteomics)	cell_line	mixed	proteomics	George et al. 2026 bioRxiv	bioRxiv supplementary files (media-2/3/4)	10.64898/2026.09.16.752145	cell_line_variability	processed	25 AML/ALL lines, 19 AML kept; layer surface_george; preprint, no PRIDE accession yet
+DEPMAP_24Q4_CN	DepMap 24Q4 copy number (interim)	cell_line	mixed	copy_number	Tsherniak et al. 2017 Cell	Figshare	27993248	cell_line_variability	processed	gene-level relative CN for the cn layer until the 26Q3 OmicsCNGene.csv is available

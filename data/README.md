@@ -19,12 +19,15 @@ data/
 
 | folder | files used | source |
 |---|---|---|
-| `DepMap_26Q3/` | `Model.csv`, `OmicsExpressionTPMLogp1HumanProteinCodingGenes.csv`, `CRISPRGeneEffect.csv`, `OmicsSomaticMutationsMatrixHotspot.csv`, `OmicsSomaticMutationsMatrixDamaging.csv`, `OmicsFusionFiltered.csv`, `PortalCompounds.csv` | DepMap portal, release 26Q3 |
+| `DepMap_26Q3/` | `Model.csv`, `OmicsExpressionTPMLogp1HumanProteinCodingGenes.csv`, `CRISPRGeneEffect.csv`, `OmicsSomaticMutationsMatrixHotspot.csv`, `OmicsSomaticMutationsMatrixDamaging.csv`, `OmicsSomaticMutations.csv` (FLT3-ITD / TKD), `OmicsFusionFiltered.csv`, `PortalCompounds.csv` | DepMap portal, release 26Q3 |
 | `DEMETER2_v6/` | `D2_combined_gene_dep_scores.csv` | DepMap portal, DEMETER2 Data v6 |
 | `DepMap_Portal_Harmonized_Drug_Screens/` | `PRISM/REPURPOSINGAUCMatrix.csv`, `CTD2/CTRPAUCMatrix.csv`, `GDSC/GDSC2AUCMatrix.csv` | DepMap portal, harmonized drug screens |
 | `CCLE_2019/` | `CCLE_miRNA_20181103.gct`, `CCLE_GlobalChromatinProfiling_20181130.csv` | DepMap portal, CCLE 2019 |
 | `methylation_RRBS/` | `CCLE_RRBS_TSS_1kb_20180614.txt`, `CCLE_RRBS_TSS_CpG_clusters_20180614.txt` | DepMap portal, CCLE 2019 |
 | `targeted_metabolomics/` | `Supp_Tables.xlsx` | Li et al. 2019 Nat Med, supplementary tables |
+| `surfaceome_George_2026/` | `media-4_surface_mean_abundance.xlsx` (surface proteome; media-2/3 and the paper PDF also kept here) | George et al. 2026 bioRxiv, https://doi.org/10.64898/2026.09.16.752145, supplementary files media-2/3/4 |
+| `annotation/` (optional) | `uniprot_cellmembrane.tsv`, `uniprot_sp_tm.tsv`; `Homo_sapiens.gene_info.gz` | UniProt, reviewed human (surface-annotated proteins); NCBI gene_info (chromosome and cytoband of each gene, for the copy-number layer) |
+| `DepMap_24Q4/` | `OmicsCNGene.csv` | DepMap 24Q4 Public (Figshare 27993248): gene-level relative copy number, used until the 26Q3 `OmicsCNGene.csv` is downloaded into `DepMap_26Q3/` (the script prefers 26Q3) |
 
 Downloaded but not yet prepared: `GSE270494/` (EPIC methylation) and `mitoAML/` (cell-line proteome).
 Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lines/`).

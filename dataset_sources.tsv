@@ -16,3 +16,5 @@ DEMETER2_V6	DEMETER2 RNAi	cell_line	mixed	RNAi dependency	McFarland et al. 2018 
 DEPMAP_DRUG_HARMONIZED	DepMap harmonized drug screens (PRISM, CTRP, GDSC2)	cell_line	mixed	drug response (AUC)	PRISM Repurposing; CTRP; GDSC2	DepMap portal		partly	CTRP from the NCI CTD2 Network; PRISM (Broad) and GDSC (Sanger) are not NCI	processed
 CCLE_2019	CCLE miRNA, chromatin, metabolomics	cell_line	mixed	miRNA; global chromatin marks; metabolomics	Ghandi et al. 2019 Nature; Li et al. 2019 Nat Med	DepMap portal; metabolomics from Li et al. supplement		no		processed
 CCLE_RRBS	CCLE RRBS methylation	cell_line	mixed	promoter and CpG-cluster methylation	Ghandi et al. 2019 Nature	DepMap portal		no		processed
+GEORGE_2026_SURFACEOME	Leukemia cell-line surfaceome	cell_line	mixed	surface proteome	George et al. 2026 bioRxiv	bioRxiv supplementary files (media-2/3/4)	10.64898/2026.09.16.752145	no		processed
+DEPMAP_24Q4_CN	DepMap 24Q4 copy number (interim)	cell_line	mixed	copy number	Tsherniak et al. 2017 Cell	DepMap 24Q4 Public on Figshare	27993248	no		processed
