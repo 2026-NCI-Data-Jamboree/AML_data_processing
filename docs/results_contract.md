@@ -12,7 +12,7 @@ results/
   schema/*.tsv                harmonized annotation schema
   cell_lines/                 prepare_cell_line_data.R
   patients/<DATASET_ID>/      prepare_patient_data.R
-  single_cell/<DATASET_ID>/   prepare_single_cell_RNAseq_data.R (planned)
+  single_cell/<REFERENCE_ID>/ prepare_deconvolution.R (planned): deconvolution reference summary
 ```
 
 Every data folder (`cell_lines/`, `patients/<DATASET_ID>/`) has the same layout:
@@ -26,6 +26,35 @@ Every data folder (`cell_lines/`, `patients/<DATASET_ID>/`) has the same layout:
 | `values/<key>.tsv.gz` | matrix: column `feature`, then one column per sample |
 | `manifest.tsv` | `path`, `kind`, `description` for every file |
 | `provenance.tsv` | key/value: `prepared_at`, `processing_commit`, `working_tree_dirty`, `r_version`, `results_version` |
+
+## Deconvolution (additive; `results_version` stays 3)
+
+`prepare_deconvolution.R` runs last (the other scripts wipe their `results/` subfolders) and adds the
+following to a data folder (`cell_lines/`, `patients/<DATASET_ID>/`) that has bulk RNA. The portal checks
+that a layer exists before showing it.
+
+**Layers.** `values/deconv_<reference>_<method>_<level>.tsv.gz`, e.g. `deconv_aml_scatlas_instaprism_cell_type`.
+Rows are cell types or cell states (`feature`), columns are the folder's sample key (as for every other layer),
+values are proportions summing to 1 per sample; the exception is the updated fit's cell-state rows, which
+cover only the normal cell types. Each method and level a run produces is its own layer (InstaPrism initial
+fit at cell type and cell state, InstaPrism updated, NNLS at cell type). The quantity (mRNA share or cell
+share) is not in the key; it is in `deconvolution_runs.tsv`. Each layer has `features/<key>.tsv` and a
+`datasets.tsv` row with modality `deconvolution`, unit `proportion`, `lower_is_stronger` empty.
+
+| file | content |
+|---|---|
+| `deconvolution_runs.tsv` | one row per layer: `key`, `reference`, `method`, `level`, `quantity` (`mrna_share`/`cell_share`), batch-dependent settings, tool version, run date, input source and conversion used |
+| `deconvolution_warnings.tsv` | `key` (empty = all layers in the folder), `scope` (`run`/`sample`/`label`), `sample_id`, `label` (empty when `scope` is `run`), `severity` (`info`/`warning`/`caution`), `code` (stable short code), `message`, `source` (`tool` copies `run_info.json`, `processing` is added by the script). Warnings flag a result; they never hide or block it |
+
+**`single_cell/<REFERENCE_ID>/`** summarizes the reference the layers were built with:
+
+| file | content |
+|---|---|
+| `reference.tsv` | one row per cell type and per cell state: `level`, `label`, `cell_type` (parent; equals the label for a cell type row), `n_cells`, `n_reference_samples`, `is_malignant` |
+| `markers.tsv` | top 20 genes per label: `level`, `label`, `rank`, `gene_id`, `gene_symbol`, `score` |
+| `provenance.tsv` | key/value: reference name, source, citation, build date, tool version, label columns, excluded labels, unlabelled policy, `limitations` |
+
+The reference also gets a dataset ID and a row in `dataset_sources.tsv`.
 
 ## `patients/<DATASET_ID>/samples.tsv` survival
 
