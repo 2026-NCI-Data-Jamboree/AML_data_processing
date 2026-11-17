@@ -15,9 +15,12 @@
 #   LEE_2018       Lee et al. 2018 Nat Commun                      expression array, 160 drugs (AUC)
 #   WANG_2022_PED  Wang et al. 2022 Blood Cancer Discov (pediatric) RNA-seq, panel, 45 drugs (AUC)
 #   MALANI_2022    Malani et al. 2022 Cancer Discov (FPM)          RNA-seq, panel, 515 drugs (DSS, sDSS)
+# RNA-only cohort (no drug response):
+#   AML_STJUDE_2024  Umeda et al. 2024 Nat Genet (pediatric)       RNA-seq, WGS / WES, fusions
 #
 # Harmonization
-#   genes     HGNC symbols; Ensembl IDs mapped with the Beat AML / Wang annotation; protein-coding only
+#   genes     current HGNC symbols (previous symbols and aliases mapped; data/reference/hgnc_complete_set.txt);
+#             RNA keeps protein-coding genes only
 #   drugs     compound_key = upper-case name without salts / brackets / punctuation, so the same drug
 #             matches across cohorts; HGNC targets from DepMap PortalCompounds (name or synonym match)
 #   mutations mut_<GENE> TRUE/FALSE for 20 recurrent AML genes (NA = gene not assayed for that sample)
@@ -108,13 +111,45 @@ collapse_rows <- function(X, ids) {
 }
 num_matrix <- function(d, cols) { X <- as.matrix(d[, cols, drop = FALSE]); storage.mode(X) <- "double"; X }
 
-# ---- gene annotation: Ensembl ID -> HGNC symbol, biotype (Beat AML + Wang 2022 annotation)
+# ---- gene annotation: current HGNC symbols (data/reference/hgnc_complete_set.txt)
+# Cohorts use gene names from different annotation releases (e.g. HDGFRP3, now HDGFL3), so every gene name
+# is mapped to its current approved symbol: approved symbol as is, else a previous symbol, else an alias,
+# when that name points to a single approved gene. Protein-coding = HGNC locus group "protein-coding gene".
+hgnc <- local({
+  h <- read.delim("data/reference/hgnc_complete_set.txt", colClasses = "character", quote = "", na.strings = "")
+  h <- h[h$status %in% "Approved", ]
+  unq <- function(col) {                       # other name (upper case) -> approved symbol, if unique
+    l <- strsplit(gsub('"', "", ifelse(is.na(h[[col]]), "", h[[col]])), "\\|")
+    d <- data.frame(from = toupper(unlist(l)), to = rep(h$symbol, lengths(l)))
+    d <- unique(d[d$from != "" & !d$from %in% toupper(h$symbol), ])
+    d <- d[!d$from %in% d$from[duplicated(d$from)], ]
+    setNames(d$to, d$from)
+  }
+  list(symbol = h$symbol, prev = unq("prev_symbol"), alias = unq("alias_symbol"),
+       ensembl = setNames(h$symbol, h$ensembl_gene_id)[!is.na(h$ensembl_gene_id)],
+       protein_coding = h$symbol[h$locus_group %in% "protein-coding gene"])
+})
+to_hgnc <- function(x) {
+  out <- ifelse(x %in% hgnc$symbol, x, NA_character_)
+  i <- is.na(out); out[i] <- hgnc$prev[toupper(x[i])]          # names are matched ignoring case
+  i <- is.na(out); out[i] <- hgnc$alias[toupper(x[i])]
+  unname(out)
+}
+# rows renamed to current symbols; rows of genes that now share a symbol are averaged; unknown names kept
+# (keep_unmapped = TRUE) or dropped
+hgnc_rows <- function(X, keep_unmapped = FALSE) {
+  s <- to_hgnc(rownames(X))
+  if (keep_unmapped) s <- ifelse(is.na(s), rownames(X), s)
+  collapse_rows(X, s)
+}
+protein_coding <- hgnc$protein_coding
+# Ensembl gene ID -> symbol for Beat AML and Malani 2022 (HGNC first, then the Beat AML annotation)
 gene_ann <- local({
   b <- read.delim(file.path(dd, "BeatAML/beataml_waves1to4_norm_exp_dbgap.txt"), nrows = 1e5,
-                  colClasses = c(rep("character", 4), rep("NULL", 707)), check.names = FALSE)
-  data.frame(ensembl = b$stable_id, symbol = b$display_label, biotype = b$biotype, stringsAsFactors = FALSE)
+                  colClasses = c(rep("character", 2), rep("NULL", 709)), check.names = FALSE)
+  setNames(b$display_label, b$stable_id)
 })
-protein_coding <- unique(gene_ann$symbol[gene_ann$biotype == "protein_coding"])
+ensembl_symbol <- function(id) { s <- unname(hgnc$ensembl[id]); ifelse(is.na(s), to_hgnc(unname(gene_ann[id])), s) }
 
 # ---- drug annotation: DepMap compounds (names + synonyms -> HGNC targets)
 compound_key <- function(x) {
@@ -152,7 +187,8 @@ signatures <- list(MYC = read.delim("data/MYC_signature_RNA.tsv")$x,
                    mTOR = read.delim("data/mTOR_signature_RNA.tsv")$x)
 add_signatures <- function(samples, E) {                          # E: genes x samples, log scale
   for (s in names(signatures)) {
-    g <- intersect(signatures[[s]], rownames(E))
+    E <- hgnc_rows(E, keep_unmapped = TRUE)
+    g <- intersect(to_hgnc(signatures[[s]]), rownames(E))
     Z <- t(scale(t(E[g, , drop = FALSE]))); Z <- Z[is.finite(rowSums(Z)), , drop = FALSE]
     sc <- colMeans(Z)
     samples[[paste0(s, "_score")]] <- round(unname(sc[samples$sample_id]), 4)
@@ -255,6 +291,7 @@ write_cohort <- function(id, samples, layers, extra_groupings = NULL, notes = ""
 }
 
 expr_layer <- function(E, label, unit, source) {
+  E <- hgnc_rows(E)
   E <- E[rownames(E) %in% protein_coding, , drop = FALSE]
   list(key = "expression", X = E, features = data.frame(label = rownames(E), gene_symbol = rownames(E)),
        label = label, modality = "transcriptomics", unit = unit, source = source, lower_is_stronger = FALSE)
@@ -271,11 +308,14 @@ drug_layer <- function(key, X, names_list, label, unit, source, lower, mechanism
 # proteomics: gene-level protein (rows = genes) and single-site phospho (rows = sites, "GENE_S123" labels)
 protein_layer <- function(P, unit, source) {
   P <- P[!is.na(rownames(P)) & rownames(P) != "", , drop = FALSE]
+  P <- hgnc_rows(P, keep_unmapped = TRUE)
   list(key = "protein", X = P, features = data.frame(label = rownames(P), gene_symbol = rownames(P)),
        label = "Protein abundance", modality = "proteomics", unit = unit, source = source, lower_is_stronger = FALSE)
 }
 phospho_layer <- function(X, site_label, window, unit, source) {
   gene <- sub("_[^_]*$", "", site_label)
+  cur <- to_hgnc(gene); cur[is.na(cur)] <- gene[is.na(cur)]          # current HGNC symbol in the label
+  site_label <- paste0(cur, substring(site_label, nchar(gene) + 1)); gene <- cur   # IDs (rownames) unchanged
   list(key = "phospho", X = X,
        features = data.frame(label = site_label, gene_symbol = gene, site = sub("^.*_", "", site_label),
                              sequence_window = window, stringsAsFactors = FALSE),
@@ -341,7 +381,7 @@ pvc <- read.csv(file.path(B, "beataml.pvc.csv"), stringsAsFactors = FALSE)
 s$cell_state <- pvc$Classification[match(map$labId[match(s$sample_id, map$dbgap_rnaseq_sample)], pvc$ID)]
 # expression (log2 normalized; RNA-seq samples)
 ex <- read.delim(file.path(B, "beataml_waves1to4_norm_exp_dbgap.txt"), check.names = FALSE)
-E <- collapse_rows(num_matrix(ex, 5:ncol(ex)), ex$display_label)
+E <- collapse_rows(num_matrix(ex, 5:ncol(ex)), ensembl_symbol(ex$stable_id))   # by Ensembl ID
 s <- add_signatures(s, E[, colnames(E) %in% s$sample_id])
 # drug response: probit-fit AUC, one value per specimen x inhibitor
 dr <- read.delim(file.path(B, "beataml_probit_curve_fits_v4_dbgap.txt"), stringsAsFactors = FALSE)
@@ -613,7 +653,7 @@ for (k in c("FLT3_ITD", "FLT3_TKD")) M[rownames(M) %in% an$Sample_ID[yn(p[[k]]) 
 s <- add_mutations(s, M)
 cpm <- read.csv(file.path(F, "File_7_RNA_seq_CPM_163S_4Healthy.csv"), check.names = FALSE, row.names = 1)
 cpm <- as.matrix(cpm[, grepl("^AML_", colnames(cpm))])          # already log2 CPM (has negative values)
-E <- collapse_rows(cpm, gene_ann$symbol[match(rownames(cpm), gene_ann$ensembl)])
+E <- collapse_rows(cpm, ensembl_symbol(rownames(cpm)))
 s <- add_signatures(s, E)
 dss <- xlsx_read(file.path(F, "File_3.2_Drug_response_DSS_sDSS_164S_17Healthy.xlsx"), 1, skip = 2)
 dss <- dss[grepl("^AML_", dss$Sample_ID), ]
@@ -634,8 +674,56 @@ for (m in c("DSS", "sDSS")) {
 write_cohort("MALANI_2022", s, layers,
              notes = "DSS / sDSS: higher = more sensitive. Drug features are FIMM IDs; label = preferred name.")
 
+# ===================================================== St. Jude pediatric AML (Umeda 2024) ==
+# cBioPortal datahub study aml_stjude_2024 (Umeda et al. 2024 Nat Genet): 887 pediatric AML samples,
+# RNA-seq (log2 CPM), WGS / WES mutations in an 87-gene panel, fusions / SVs; no survival or drug data
+cat("AML_STJUDE_2024\n")
+J <- file.path(dd, "aml_stjude_2024")
+cbio <- function(f) read.delim(file.path(J, f), comment.char = "#", colClasses = "character",
+                               na.strings = c("NA", ""), check.names = FALSE, quote = "")
+cs <- cbio("data_clinical_sample.txt"); cp <- cbio("data_clinical_patient.txt")
+p  <- cp[match(cs$PATIENT_ID, cp$PATIENT_ID), ]
+sv <- cbio("data_sv.txt")
+kfus <- sv[sv$Event_Info %in% "Fusion" & xor(sv$Site1_Hugo_Symbol %in% "KMT2A", sv$Site2_Hugo_Symbol %in% "KMT2A"), ]
+kpart <- tapply(ifelse(kfus$Site1_Hugo_Symbol == "KMT2A", kfus$Site2_Hugo_Symbol, kfus$Site1_Hugo_Symbol),
+                kfus$Sample_Id, function(x) paste(sort(unique(x)), collapse = ";"))
+s <- data.frame(
+  sample_id = cs$SAMPLE_ID, participant_id = cs$PATIENT_ID, population = "pediatric",
+  age_years = num(p$DIAGNOSIS_AGE), sex = tolower(p$SEX),
+  disease_oncotree = "AML", diagnosis = cs$WHO5_CATEGORY,
+  tissue = c("Bone Marrow" = "bone_marrow", "Peripheral Blood" = "peripheral_blood")[cs$SAMPLE_SOURCE],
+  timepoint = c(Diagnosis = "diagnosis", Relapse = "relapse", "Second Relapse" = "relapse")[cs$TIMEPOINT],
+  KMT2A_rearranged = cs$MOLECULAR_CATEGORY %in% "KMT2Ar" | cs$SAMPLE_ID %in% names(kpart),
+  KMT2A_partner = unname(kpart[cs$SAMPLE_ID]),
+  molecular_category = cs$MOLECULAR_CATEGORY,
+  FAB = cs$FAB_MORPHOLOGY,
+  stringsAsFactors = FALSE)
+s$sex[!s$sex %in% c("female", "male")] <- NA
+# mutations: somatic calls (germline variants left out) in the samples with WGS / WES; FLT3-ITD are
+# reported as FLT3 internal duplications in the SV file and are counted as FLT3 mutations
+gp <- cbio("data_gene_panel_matrix.txt")
+mf <- read.delim(file.path(J, "data_mutations.txt"), comment.char = "#", colClasses = "character", quote = "")
+mf <- mf[mf$Mutation_Status != "GERMLINE", ]
+itd <- sv$Sample_Id[sv$Site1_Hugo_Symbol %in% "FLT3" & sv$Site2_Hugo_Symbol %in% "FLT3" & sv$Event_Info %in% "Duplication"]
+M <- mut_matrix(s$sample_id, aml_genes, c(mf$Tumor_Sample_Barcode, itd), c(mf$Hugo_Symbol, rep("FLT3", length(itd))))
+M[!s$sample_id %in% gp$SAMPLE_ID[!is.na(gp$mutations)], ] <- NA
+s <- add_mutations(s, M)
+rn <- read.delim(file.path(J, "data_mrna_seq_cpm.txt"), check.names = FALSE, quote = "")
+E <- collapse_rows(num_matrix(rn, setdiff(names(rn), "Hugo_Symbol")), rn$Hugo_Symbol)
+stopifnot(all(colnames(E) %in% s$sample_id))
+s <- add_signatures(s, E)
+write_cohort("AML_STJUDE_2024", s, list(expr_layer(E, "RNA expression", "log2 CPM", "Umeda et al. 2024 (cBioPortal)")),
+  extra_groupings = data.frame(column = c("molecular_category", "FAB"),
+                               label = c("Molecular category", "FAB subtype"),
+                               true_label = "", false_label = "", kind = "categorical"),
+  notes = paste("Pediatric AML (St. Jude, Umeda et al. 2024 Nat Genet), from the cBioPortal datahub study aml_stjude_2024.",
+                "Mutations from WGS / WES for 665 of 887 samples (somatic calls; FLT3-ITD from the structural variant",
+                "calls). KMT2A from the molecular category or a KMT2A fusion. No risk group, survival or drug response.",
+                "Includes TARGET and other published cohorts, so some patients may also appear in Wang 2022."))
+
 # shared metadata the portal reads alongside the data
 for (d in c("catalog", "schema")) { unlink(file.path("results", d), recursive = TRUE)
   file.copy(d, "results", recursive = TRUE) }
 file.copy("dataset_sources.tsv", "results", overwrite = TRUE)
+file.copy("docs/results_README.md", "results/README.md", overwrite = TRUE)
 cat("done ->", out_root, "\n")

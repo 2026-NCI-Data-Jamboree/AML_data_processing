@@ -12,3 +12,4 @@ data/cell_lines/*
 data/patients/
 data/*.zip
 data/single_cell/
+data/reference/

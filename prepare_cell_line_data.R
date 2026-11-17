@@ -290,4 +290,5 @@ write_tsv(do.call(rbind, manifest), "manifest.tsv")
 for (d in c("catalog", "schema")) { unlink(file.path("results", d), recursive = TRUE)
   file.copy(d, "results", recursive = TRUE) }
 file.copy("dataset_sources.tsv", "results", overwrite = TRUE)
+file.copy("docs/results_README.md", "results/README.md", overwrite = TRUE)
 cat("done ->", out_dir, "\n")

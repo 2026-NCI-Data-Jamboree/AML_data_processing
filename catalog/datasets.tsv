@@ -1,19 +1,14 @@
 dataset_id	name	sample_type	population	modalities	reference	source	accession	used_by	status	notes
 CPTAC_AML_ADULT	CPTAC adult AML	patient	adult	clinical;genomics;proteomics;phosphoproteomics	Chu et al. 2026 Nat Cancer	CPTAC	data freeze v8	drug_response_biomarkers	processed	protein and phosphosites (RBC-corrected); no survival or drug response in this release
 ZENODO_14160480	AML proteogenomics (Zenodo 14160480)	patient	adult	clinical;transcriptomics;proteomics;phosphoproteomics;drug_screen		Zenodo	14160480	drug_response_biomarkers	processed	374 newly diagnosed patients; OS / EFS; drug IC50 for 102 non-M3 patients; no per-gene mutation calls
-CPTAC_KF_PEDIATRIC_AML	CPTAC-Kids First pediatric AML	patient	pediatric	TBD		CPTAC / Kids First			planned	
 BEAT_AML	Beat AML	patient	adult	clinical;genomics;transcriptomics;drug_screen	Bottomly et al. 2022 Cancer Cell	Beat AML / GDC		drug_response_biomarkers	processed	
 PTRC_BEAT_AML	Beat AML proteomics (PTRC)	patient	adult	clinical;genomics;proteomics;phosphoproteomics;drug_screen	Pino et al. 2024 Cell Rep Med	OHSU / PNNL Proteogenomic Translational Research Center (PTRC)		drug_response_biomarkers	processed	Beat AML specimens; clinical data and drug AUC from Beat AML
-TCGA_LAML	TCGA LAML	patient	adult	clinical;genomics;transcriptomics;methylation	TCGA	GDC	TCGA-LAML		planned	
-TARGET_AML	TARGET AML	patient	pediatric	clinical;genomics;transcriptomics;methylation	TARGET	GDC	TARGET-AML		planned	
 WANG_2022_PED	Pediatric AML pharmacogenomics	patient	pediatric	clinical;genomics;transcriptomics;drug_screen	Wang et al. 2022 Blood Cancer Discov			drug_response_biomarkers	processed	
+AML_STJUDE_2024	St. Jude pediatric AML (Umeda 2024)	patient	pediatric	clinical;genomics;transcriptomics	Umeda et al. 2024 Nat Genet	cBioPortal datahub	aml_stjude_2024	age_association	processed	887 samples with RNA-seq; WGS / WES mutations for 665; no survival or drug response
 LEE_2018	Lee et al. AML drug response	patient	adult	clinical;transcriptomics;drug_screen	Lee et al. 2018 Nat Commun			drug_response_biomarkers	processed	
 MALANI_2022	FPM tumor board AML	patient	adult	clinical;genomics;transcriptomics;drug_screen	Malani et al. 2022 Cancer Discov			drug_response_biomarkers	processed	
-JAYAVELU_2022	Proteogenomic subtypes of AML	patient	adult	proteomics;phosphoproteomics	Jayavelu et al. 2022 Cancer Cell			cell_line_variability	planned	phenotypic classification used for grouping
 DEPMAP_26Q3	DepMap 26Q3	cell_line	mixed	transcriptomics;genomics;crispr_dependency	Tsherniak et al. 2017 Cell	DepMap portal	26Q3	cell_line_variability	processed	
 DEMETER2_V6	DEMETER2 RNAi	cell_line	mixed	rnai_dependency	McFarland et al. 2018 Nat Commun	DepMap portal	DEMETER2 v6	cell_line_variability	processed	
 DEPMAP_DRUG_HARMONIZED	DepMap harmonized drug screens (PRISM, CTRP, GDSC)	cell_line	mixed	drug_screen		DepMap portal		cell_line_variability	processed	
 CCLE_2019	CCLE miRNA, chromatin, metabolomics	cell_line	mixed	mirna;chromatin;metabolomics	Li et al. 2019 Nat Med; Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed	
 CCLE_RRBS	CCLE RRBS methylation	cell_line	mixed	methylation	Ghandi et al. 2019 Nature	DepMap portal		cell_line_variability	processed	
-GSE270494	EPIC methylation (Noguera-Castells et al.)	cell_line	mixed	methylation		GEO	GSE270494	cell_line_variability	downloaded	not yet in prepare_cell_line_data.R
-PAUDEL_2024	Sphingolipidomic subtypes of AML	cell_line;patient	mixed	lipidomics	Paudel et al. 2024 Blood Adv			cell_line_variability	planned	

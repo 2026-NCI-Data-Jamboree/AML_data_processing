@@ -1,7 +1,7 @@
 # Dataset catalog
 
-`datasets.tsv` is the inventory of every dataset the resource uses or plans to use, one row
-per dataset. The portal shows it on the **Datasets** page.
+`datasets.tsv` is the inventory of the datasets integrated into the resource, one row per dataset.
+Only datasets that are processed and in the portal are listed. The portal shows it on the **Datasets** page.
 
 | column | meaning |
 |---|---|

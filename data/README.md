@@ -40,8 +40,11 @@ Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lin
 
 | `PTRC/` | `PTRC_BEAT_AML` | `PTRC_metadata.tsv`, `PTRC_protein_gene_ratio_MD.tsv`, `PTRC_phospho_single_site_ratio_MD.tsv` | OHSU / PNNL PTRC (Pino et al. 2024) |
 | `zenodo_14160480/` | `ZENODO_14160480` | `Protein abundance of 374 AML patients after adjusting batch effects.csv`, `Phosphopeptides of 217 AML patients.csv`, `Gene expression matrix of 361 AML patients ... (TPM) format.xlsx`, `Supp_Data_1.xlsx` (clinical), `Supp_Data_10.xlsx` (drugs), `Supp_Data_11.xlsx` (IC50) | Zenodo record 14160480 |
+| `aml_stjude_2024/` | `AML_STJUDE_2024` | `data_clinical_sample.txt`, `data_clinical_patient.txt`, `data_mutations.txt`, `data_sv.txt`, `data_gene_panel_matrix.txt`, `data_mrna_seq_cpm.txt` | cBioPortal datahub, Umeda et al. 2024 Nat Genet |
 | `adult_AML_data_freeze/` | `CPTAC_AML_ADULT` | `proteogenomics_metadata_20250112.tsv`, `v8/prot_ratio_gene_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv`, `v8/phospho_ratio_signle-site_MD_tidy_mapFile_proteogenomics_RBC_corrected.tsv` | CPTAC adult AML data freeze v8 |
 
-`prepare_patient_data.R` also reads `cell_lines/DepMap_26Q3/PortalCompounds.csv` for drug targets.
+`prepare_patient_data.R` also reads `cell_lines/DepMap_26Q3/PortalCompounds.csv` for drug targets and
+`reference/hgnc_complete_set.txt` for current gene symbols (HGNC complete set, from
+https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt; gitignored).
 Not used: PTRC RNA files (the RNA is in Beat AML), data freeze PTM (acetyl, glyco, succinyl) and imputed / `all` files, `beatAML.rpkm.RDS`, Wang `GSE192638_Gene_count_matrix_updated.txt(.gz)`, Malani `File_3.1`,
-`File_4`, `File_5`, `File_8`, `File_9`.
+`File_4`, `File_5`, `File_8`, `File_9`, St. Jude z-scores, GISTIC and ancestry files.
