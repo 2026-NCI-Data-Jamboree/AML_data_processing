@@ -223,9 +223,11 @@ put("rnai", X, data.frame(label = sub(" \\(.*$", "", colnames(X)), sym_entrez(co
     "RNAi dependency", "rnai_dependency", "DEMETER2 gene effect", "DEMETER2 v6", TRUE)
 
 # --- Copy number, DepMap gene-level relative CN: log2(relative CN + 1), so 1 = ploidy-neutral.
-# 26Q3 when downloaded, else the 24Q4 copy (source says which). Protein-coding genes with an NCBI
-# cytoband only; chromosome + cytoband let the portal aggregate genes into genomic regions.
-cn_file <- c(file.path(dd, "DepMap_26Q3/OmicsCNGene.csv"), file.path(dd, "DepMap_24Q4/OmicsCNGene.csv"))
+# 26Q3 WGS-based gene-level CN (OmicsCNGeneWGS.csv) first; older OmicsCNGene.csv (26Q3, else 24Q4) as a
+# fallback (source says which). Protein-coding genes with an NCBI cytoband only; chromosome + cytoband let
+# the portal aggregate genes into genomic regions.
+cn_file <- c(file.path(dd, "DepMap_26Q3/OmicsCNGeneWGS.csv"), file.path(dd, "DepMap_26Q3/OmicsCNGene.csv"),
+             file.path(dd, "DepMap_24Q4/OmicsCNGene.csv"))
 cn_file <- cn_file[file.exists(cn_file)][1]
 gi_file <- file.path(dd, "annotation/Homo_sapiens.gene_info.gz")
 if (!is.na(cn_file) && file.exists(gi_file)) {
@@ -243,7 +245,7 @@ if (!is.na(cn_file) && file.exists(gi_file)) {
   put("cn", X, data.frame(label = sub(" \\(.*$", "", colnames(X)), sym_entrez(colnames(X)),
                           chromosome = gi$chromosome[i], cytoband = gi$map_location[i]),
       "Copy number", "copy_number", "log2(relative CN + 1)",
-      paste("DepMap", sub("^.*DepMap_([^/]+)/.*$", "\\1", cn_file)))
+      paste("DepMap", sub("^.*DepMap_([^/]+)/.*$", "\\1", cn_file), if (grepl("WGS", cn_file)) "(WGS)" else ""))
 }
 
 # --- Measured cell-surface proteome (George et al. 2026, bioRxiv 10.64898/2026.09.16.752145): surface

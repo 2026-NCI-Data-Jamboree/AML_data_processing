@@ -11,10 +11,9 @@ LEUCEGENE	Leucegene	patient	adult	clinical (WHO / ICC 2022, OS where available);
 LUMC_AML	LUMC AML	patient	adult	clinical (WHO / ICC 2022, OS where available); mutations; fusions; RNA		AMLmap compendium; Leiden University Medical Center		no		processed
 LEE_2018	Lee et al. AML drug response	patient	adult	clinical; expression array; ex vivo drug response	Lee et al. 2018 Nat Commun	Supplementary data 1-3		no		processed
 MALANI_2022	FPM tumor board AML	patient	adult	clinical; mutation panel; RNA; drug sensitivity (DSS, sDSS)	Malani et al. 2022 Cancer Discov	Supplementary files (FIMM, Helsinki)		no		processed
-DEPMAP_26Q3	DepMap 26Q3	cell_line	mixed	RNA; mutations; fusions; CRISPR dependency (Chronos)	Tsherniak et al. 2017 Cell	DepMap portal (Broad)	26Q3	no		processed
+DEPMAP_26Q3	DepMap 26Q3	cell_line	mixed	RNA; mutations; fusions; CRISPR dependency (Chronos); copy number (WGS)	Tsherniak et al. 2017 Cell	DepMap portal (Broad)	26Q3	no		processed
 DEMETER2_V6	DEMETER2 RNAi	cell_line	mixed	RNAi dependency	McFarland et al. 2018 Nat Commun	DepMap portal (Broad)	DEMETER2 v6	no		processed
 DEPMAP_DRUG_HARMONIZED	DepMap harmonized drug screens (PRISM, CTRP, GDSC2)	cell_line	mixed	drug response (AUC)	PRISM Repurposing; CTRP; GDSC2	DepMap portal		partly	CTRP from the NCI CTD2 Network; PRISM (Broad) and GDSC (Sanger) are not NCI	processed
 CCLE_2019	CCLE miRNA, chromatin, metabolomics	cell_line	mixed	miRNA; global chromatin marks; metabolomics	Ghandi et al. 2019 Nature; Li et al. 2019 Nat Med	DepMap portal; metabolomics from Li et al. supplement		no		processed
 CCLE_RRBS	CCLE RRBS methylation	cell_line	mixed	promoter and CpG-cluster methylation	Ghandi et al. 2019 Nature	DepMap portal		no		processed
 GEORGE_2026_SURFACEOME	Leukemia cell-line surfaceome	cell_line	mixed	surface proteome	George et al. 2026 bioRxiv	bioRxiv supplementary files (media-2/3/4)	10.64898/2026.09.16.752145	no		processed
-DEPMAP_24Q4_CN	DepMap 24Q4 copy number (interim)	cell_line	mixed	copy number	Tsherniak et al. 2017 Cell	DepMap 24Q4 Public on Figshare	27993248	no		processed

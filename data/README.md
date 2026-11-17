@@ -27,7 +27,7 @@ data/
 | `targeted_metabolomics/` | `Supp_Tables.xlsx` | Li et al. 2019 Nat Med, supplementary tables |
 | `surfaceome_George_2026/` | `media-4_surface_mean_abundance.xlsx` (surface proteome; media-2/3 and the paper PDF also kept here) | George et al. 2026 bioRxiv, https://doi.org/10.64898/2026.09.16.752145, supplementary files media-2/3/4 |
 | `annotation/` (optional) | `uniprot_cellmembrane.tsv`, `uniprot_sp_tm.tsv`; `Homo_sapiens.gene_info.gz` | UniProt, reviewed human (surface-annotated proteins); NCBI gene_info (chromosome and cytoband of each gene, for the copy-number layer) |
-| `DepMap_24Q4/` | `OmicsCNGene.csv` | DepMap 24Q4 Public (Figshare 27993248): gene-level relative copy number, used until the 26Q3 `OmicsCNGene.csv` is downloaded into `DepMap_26Q3/` (the script prefers 26Q3) |
+| `DepMap_26Q3/` (copy number) | `OmicsCNGeneWGS.csv` | DepMap portal, release 26Q3: gene-level relative copy number from WGS, for the `cn` layer (an older `OmicsCNGene.csv`, 26Q3 or `DepMap_24Q4/`, is used only if this file is absent) |
 
 Downloaded but not yet prepared: `GSE270494/` (EPIC methylation) and `mitoAML/` (cell-line proteome).
 Symlinks to an existing copy work too (`ln -s /path/to/DepMap_26Q3 data/cell_lines/`).

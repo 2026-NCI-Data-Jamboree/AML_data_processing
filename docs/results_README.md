@@ -78,7 +78,7 @@ Each cohort's `provenance.tsv` has notes on how it was processed. References, so
 | `mirna` | miRNA expression | log2(expression+1) | 35 |
 | `chromatin` | global chromatin marks | relative abundance | 34 |
 | `metabolomics` | metabolomics | log10 abundance | 37 |
-| `cn` | copy number, gene level (DepMap 24Q4 until the 26Q3 file is added) | log2(relative CN + 1); 1 = no change | 59 |
+| `cn` | copy number, gene level (DepMap 26Q3, WGS) | log2(relative CN + 1); 1 = no change | 50 |
 | `surface_george` | cell-surface proteome, surface biotinylation (George et al. 2026, bioRxiv preprint) | log2 mean abundance; empty = not detected on the surface | 19 |
 
 The `cn` features add `chromosome` and `cytoband`, so genes can be grouped into arms or bands. The
