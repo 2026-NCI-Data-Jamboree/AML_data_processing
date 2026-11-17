@@ -7,8 +7,8 @@ Biomarker Discovery and Drug Target Nomination in Leukemia*.
 Public acute myeloid leukemia (AML) datasets are brought into one layout and one vocabulary, so that patient
 cohorts and cell lines can be analysed side by side:
 
-- **70 AML cell lines** with 11 data types: RNA, CRISPR and RNAi dependency, three drug screens, methylation,
-  miRNA, chromatin marks and metabolomics.
+- **70 AML cell lines** with 13 data types: RNA, CRISPR and RNAi dependency, three drug screens, methylation,
+  miRNA, chromatin marks, metabolomics, copy number and the cell-surface proteome.
 - **12 patient cohorts**, adult and pediatric: 3,712 samples from 3,333 patients, with RNA, protein,
   phosphosites, mutations, clinical data and ex vivo drug response.
 
@@ -78,6 +78,12 @@ Each cohort's `provenance.tsv` has notes on how it was processed. References, so
 | `mirna` | miRNA expression | log2(expression+1) | 35 |
 | `chromatin` | global chromatin marks | relative abundance | 34 |
 | `metabolomics` | metabolomics | log10 abundance | 37 |
+| `cn` | copy number, gene level (DepMap 24Q4 until the 26Q3 file is added) | log2(relative CN + 1); 1 = no change | 59 |
+| `surface_george` | cell-surface proteome, surface biotinylation (George et al. 2026, bioRxiv preprint) | log2 mean abundance; empty = not detected on the surface | 19 |
+
+The `cn` features add `chromosome` and `cytoband`, so genes can be grouped into arms or bands. The
+`surface_george` features add `spc` (the paper's surface score, 0–4) and `surfaceome` (TRUE when UniProt places
+the protein at the cell surface; the capture also picks up some abundant intracellular proteins).
 
 ## How the data is harmonized
 
@@ -96,6 +102,8 @@ Each cohort's `provenance.tsv` has notes on how it was processed. References, so
   KIT, IDH1, IDH2, DNMT3A, TET2, ASXL1, RUNX1, CEBPA, WT1, SRSF2, U2AF1, SF3B1, STAG2 and BCOR.
   - The columns are TRUE (mutated) or FALSE (not mutated).
   - Empty means the gene was **not tested** for that sample, which is different from not mutated.
+- **FLT3-ITD** (cell lines): `FLT3_ITD` is TRUE for an internal tandem duplication, called from the
+  variant-level mutation table. `mut_FLT3` also counts ITD and the D835 / I836 TKD mutations.
 - **KMT2A rearrangement** (`KMT2A_rearranged`, with `KMT2A_partner` when known) comes from fusion calls,
   karyotype or clinical records, depending on the cohort.
 - **Risk group** is favorable, intermediate or adverse, as the cohort reports it. `risk_classification`
