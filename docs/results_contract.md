@@ -12,7 +12,7 @@ results/
   schema/*.tsv                harmonized annotation schema
   cell_lines/                 prepare_cell_line_data.R
   patients/<DATASET_ID>/      prepare_patient_data.R
-  single_cell/<REFERENCE_ID>/ prepare_deconvolution.R (planned): deconvolution reference summary
+  single_cell/<REFERENCE_ID>/ prepare_deconvolution.py (planned): deconvolution reference summary
 ```
 
 Every data folder (`cell_lines/`, `patients/<DATASET_ID>/`) has the same layout:
@@ -29,7 +29,7 @@ Every data folder (`cell_lines/`, `patients/<DATASET_ID>/`) has the same layout:
 
 ## Deconvolution (additive; `results_version` stays 3)
 
-`prepare_deconvolution.R` runs last (the other scripts wipe their `results/` subfolders) and adds the
+`prepare_deconvolution.py` runs last (the other scripts wipe their `results/` subfolders) and adds the
 following to a data folder (`cell_lines/`, `patients/<DATASET_ID>/`) that has bulk RNA. The portal checks
 that a layer exists before showing it.
 
