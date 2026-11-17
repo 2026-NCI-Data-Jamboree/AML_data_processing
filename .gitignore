@@ -13,3 +13,4 @@ data/patients/
 data/*.zip
 data/single_cell/
 data/reference/
+deconvolution/runs/
