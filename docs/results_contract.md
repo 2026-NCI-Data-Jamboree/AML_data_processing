@@ -30,7 +30,7 @@ Every data folder (`cell_lines/`, `patients/<DATASET_ID>/`) has the same layout:
 ## Deconvolution (additive; `results_version` stays 3)
 
 `prepare_deconvolution.py` runs last (the other scripts wipe their `results/` subfolders) and adds the
-following to a data folder (`cell_lines/`, `patients/<DATASET_ID>/`) that has bulk RNA. The portal checks
+following to a `patients/<DATASET_ID>/` folder that has bulk RNA (cell lines are not deconvolved). The portal checks
 that a layer exists before showing it.
 
 **Layers.** `values/deconv_<reference>_<method>_<level>.tsv.gz`, e.g. `deconv_aml_scatlas_instaprism_cell_type`.

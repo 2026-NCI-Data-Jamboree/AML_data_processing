@@ -4,7 +4,7 @@
 # ///
 """Prepare cell type / cell state proportions of bulk RNA samples for the portal.
 
-    results/ + data/  ->  deconvolution layers added to results/patients/<DATASET_ID>/ and results/cell_lines/
+    results/ + data/  ->  deconvolution layers added to results/patients/<DATASET_ID>/
         values/deconv_<reference>_<method>_<level>.tsv.gz   rows = cell types or states, columns = sample key
         features/deconv_*.tsv, rows in datasets.tsv (modality deconvolution, unit proportion), manifest.tsv
         deconvolution_runs.tsv       one row per layer
@@ -23,21 +23,31 @@ RUN LAST: prepare_cell_line_data.R and prepare_patient_data.R wipe their results
 Run from the repo root. Inputs: data/reference/aml-scatlas.rds, data/reference/hgnc_complete_set.txt and the
 raw files named in SOURCES. The tool's renv must be restored first (deconvolution/README.md).
 
-Sources done so far: WANG_2022_PED, BEAT_AML. To do: ZENODO_14160480, cell_lines (log inversion and
-symbol -> Ensembl mapping with HGNC), MALANI_2022 (once harmonized).
+INPUT: raw or estimated counts, or linear CPM (library-size normalized only). Transcript-length-normalized data
+(TPM, RPKM, FPKM) and log-scale values must not be deconvolved: the reference is built from counts, and dividing by
+transcript length changes the relative weight of genes. A source is judged by the unit recorded for its data
+(datasets.tsv `unit`, or the file's documentation); read_log_expression() refuses TPM, RPKM and FPKM and any
+unit that is not in UNIT_TO_LINEAR. Zenodo 14160480 (log2(TPM+1)) is therefore not a source, nor is Wang's raw GEO
+matrix (TPM-like); Wang is deconvolved from its harmonized log2 CPM layer instead.
+
+Sources: WANG_2022_PED (harmonized log2 CPM); BEAT_AML, TCGA_LAML, TARGET_AML, LEUCEGENE and LUMC_AML (the AMLmap
+studies), from AMLmap's raw counts (uncorrected_counts.csv; the batch-corrected counts only feed the RNA layer). To do: MALANI_2022 (raw counts and log2 CPM exist; needs a harmonized folder), LEE_2018 (microarray).
+Cell lines are not deconvolved: a line is one cell type, so proportions say nothing.
 """
 
 import argparse
 import csv
 import json
+import re
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Callable
 
+import numpy as np
 import pandas as pd
 
 # ---- Reference configuration: everything specific to the reference lives here ----------------------
@@ -72,7 +82,7 @@ HGNC_PATH = Path("data/reference/hgnc_complete_set.txt")
 TOOL_DIR = Path("deconvolution")
 RUNS_DIR = TOOL_DIR / "runs"  # bulk matrices, logs and tool outputs per run (gitignored)
 
-# One run per cohort (and one for the cell lines). Each run: InstaPrism (initial + updated fit) and NNLS.
+# One run per cohort. Each run: InstaPrism (initial + updated fit) and NNLS.
 TOOL_METHODS = {
     "instaprism": ["--method", "instaprism", "--malignant-cell-type", REFERENCE["malignant"]],
     "nnls": ["--method", "nnls"],
@@ -92,44 +102,96 @@ WARNING_COLUMNS = ["key", "scope", "sample_id", "label", "severity", "code", "me
 # ---- Sources ----------------------------------------------------------------------------------------
 @dataclass
 class Bulk:
-    """Linear bulk expression for the tool: genes x samples, columns = the folder's sample key."""
+    """Bulk RNA for the tool: genes (Ensembl IDs) x samples, columns = the folder's sample key.
 
-    matrix: pd.DataFrame  # rescaled to 1e6 per sample
+    Raw or estimated counts, or linear CPM-like values (library-size normalized only). Transcript-length-normalized
+    data (TPM, RPKM, FPKM) and log-scale values must not be deconvolved, so a cohort whose only RNA is such data
+    is not deconvolved: there is no reader for it.
+    """
+
+    matrix: pd.DataFrame
     source: str  # input file, for deconvolution_runs.tsv
     conversion: str  # what was done to it, for deconvolution_runs.tsv
     tool_input: str  # the tool's --bulk-input: "counts" or "normalized"
+    notes: list[tuple[str, str, str]] = field(default_factory=list)  # (severity, code, message) for the warnings table
 
 
 def rescale(matrix: pd.DataFrame) -> pd.DataFrame:
     return matrix / matrix.sum() * 1e6
 
 
-def read_wang(sample_ids: list[str]) -> Bulk:
-    path = Path("data/patients/Blood_Cancer_Discovery_2022/GSE192638_Gene_count_matrix_updated.txt")
-    table = pd.read_csv(path, sep="\t").set_index("gene_id")
-    matrix = table[[s for s in sample_ids if s in table.columns]].astype(float)
-    return Bulk(
-        rescale(matrix),
-        str(path),
-        "none (linear TPM-like values rescaled to 1e6 per sample)",
-        "normalized",
-    )
+AMLMAP_COUNTS = Path("data/patients/AMLmap/counts/uncorrected_counts.csv")
+AMLMAP_META = Path("data/patients/AMLmap/meta.csv")
 
 
-def read_beat_aml(sample_ids: list[str]) -> Bulk:
-    path = Path("data/patients/BeatAML/beatAML.rpkm.RDS")
-    tsv = RUNS_DIR / "beatAML.rpkm.tsv.gz"  # Python cannot read .RDS: convert once with base R
-    if not tsv.exists() or tsv.stat().st_mtime < path.stat().st_mtime:
-        tsv.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["Rscript", "convert_rds_to_tsv.R", str(path), str(tsv)], check=True)
-    table = pd.read_csv(tsv, sep="\t").set_index("gene_id")
-    matrix = table[[s for s in sample_ids if s in table.columns]].astype(float)
-    return Bulk(
-        rescale(matrix),
-        str(path),
-        "none (linear RPKM rescaled to 1e6 per sample)",
-        "normalized",
-    )
+def read_amlmap(study: str, amlmap_id: Callable[[str], str] = lambda sample_id: sample_id) -> Callable:
+    """Reader for one AMLmap study: raw integer counts of the pipeline that re-processed all five studies
+    (`uncorrected_counts.csv`, not the batch-corrected files). `amlmap_id` maps a folder's sample ID to AMLmap's."""
+
+    def read(sample_ids: list[str], hgnc: pd.DataFrame) -> Bulk:
+        meta = pd.read_csv(AMLMAP_META, usecols=["sample_id", "study"])
+        in_study = set(meta.loc[meta["study"] == study, "sample_id"])
+        wanted = {sid: amlmap_id(sid) for sid in sample_ids if amlmap_id(sid) in in_study}
+        header = pd.read_csv(AMLMAP_COUNTS, nrows=0).columns
+        columns = [header[0], *[c for c in header[1:] if c in set(wanted.values())]]
+        counts = pd.read_csv(AMLMAP_COUNTS, index_col=0, usecols=columns).astype(float)
+        counts = counts.rename(columns={v: k for k, v in wanted.items()})
+        counts.index = counts.index.str.replace(r"\.\d+$", "", regex=True)  # drop Ensembl version suffixes
+        counts = counts.groupby(level=0).sum()
+        return Bulk(counts, str(AMLMAP_COUNTS), f"none (raw integer counts, AMLmap {study})", "counts")
+
+    return read
+
+
+# The harmonized layers' units that can be deconvolved, inverted to linear CPM. Only library-size-normalized
+# units belong here. The pseudocount is not in the unit string: Wang's layer (Table S13) has its minimum at exactly
+# log2(0.001) for 6.35% of the entries, so it is log2(CPM + 0.001).
+UNIT_TO_LINEAR = {"log2 CPM": lambda x: np.exp2(x) - 0.001}
+LENGTH_NORMALIZED = re.compile(r"\b(TPM|RPKM|FPKM)\b", re.IGNORECASE)
+GENE_LOSS_WARNING = 0.05  # warning (not info) if more than this share of genes cannot be mapped
+
+
+def read_log_expression(folder: Path) -> Callable[[list[str], pd.DataFrame], Bulk]:
+    """Reader for a folder's harmonized expression layer when its recorded unit is a log-scale CPM: invert it,
+    map the symbol-keyed genes to Ensembl IDs, sum genes that share an ID and rescale to 1e6 per sample.
+    Refuses TPM, RPKM and FPKM, and any unit that is not in UNIT_TO_LINEAR."""
+
+    def read(sample_ids: list[str], hgnc: pd.DataFrame) -> Bulk:
+        unit = read_tsv(folder / "datasets.tsv").set_index("key").loc["expression", "unit"]
+        if LENGTH_NORMALIZED.search(unit):
+            raise ValueError(f"{folder}: the expression unit '{unit}' is transcript-length-normalized and must not be "
+                             "deconvolved; use counts or CPM")
+        if unit not in UNIT_TO_LINEAR:
+            raise ValueError(f"{folder}: no conversion to linear CPM for the expression unit '{unit}'")
+        features = read_tsv(folder / "features" / "expression.tsv").set_index("feature")
+        values = pd.read_csv(folder / "values" / "expression.tsv.gz", sep="\t", index_col=0)
+        values = values[[s for s in sample_ids if s in values.columns]]
+        linear = UNIT_TO_LINEAR[unit](values.astype(float)).clip(lower=0)
+
+        mapped = symbols_to_ensembl(features.loc[linear.index, "gene_symbol"], hgnc)
+        resolved = mapped["ensembl"] != ""
+        by_ensembl = linear[resolved].groupby(mapped.loc[resolved, "ensembl"]).sum()  # shared IDs are summed
+        steps = mapped.loc[resolved, "step"].value_counts()
+        lost = (~resolved).sum() / len(resolved)
+        notes = [
+            ("caution", "log_scale_input",
+             f"The input is on the {unit} scale and was converted to linear CPM before deconvolution; the "
+             "conversion is only as exact as the recorded unit and pseudocount, and the layer's gene filtering "
+             "(protein-coding genes) means the rescaled values are not the original CPM."),
+            ("warning" if lost > GENE_LOSS_WARNING else "info", "gene_mapping_loss",
+             f"{(~resolved).sum()} of {len(resolved)} genes ({100 * lost:.1f}%) could not be mapped to a single Ensembl "
+             f"ID with HGNC and were dropped (resolved by: {', '.join(f'{n} {s}' for s, n in steps.items())}); "
+             f"{resolved.sum() - len(by_ensembl)} genes shared an ID and were summed."),
+        ]
+        return Bulk(
+            rescale(by_ensembl),
+            f"{folder}/values/expression.tsv.gz",
+            f"inverted from {unit} with 2^x - 0.001; symbols mapped to Ensembl IDs with HGNC; rescaled to 1e6 per sample",
+            "normalized",
+            notes,
+        )
+
+    return read
 
 
 @dataclass
@@ -138,12 +200,21 @@ class Source:
     folder: Path
     key: str  # sample key column: sample_id (patients) or cell_line
     count_column: str  # datasets.tsv column holding the number of samples
-    reader: Callable[[list[str]], Bulk]
+    reader: Callable[[list[str], pd.DataFrame], Bulk]  # (sample ids, HGNC table) -> linear bulk matrix
 
 
 SOURCES = [
-    Source("WANG_2022_PED", Path("results/patients/WANG_2022_PED"), "sample_id", "n_samples", read_wang),
-    Source("BEAT_AML", Path("results/patients/BEAT_AML"), "sample_id", "n_samples", read_beat_aml),
+    # Wang's harmonized layer is log2 CPM; its raw GEO matrix is TPM-like and is not used
+    Source("WANG_2022_PED", Path("results/patients/WANG_2022_PED"), "sample_id", "n_samples",
+           read_log_expression(Path("results/patients/WANG_2022_PED"))),
+    # Beat AML RNA samples end in "R" in the folder and have no suffix in AMLmap
+    Source("BEAT_AML", Path("results/patients/BEAT_AML"), "sample_id", "n_samples",
+           read_amlmap("BEAT_AML", lambda sid: sid.removesuffix("R") if sid.endswith("R") else "")),
+    # the four other AMLmap studies are cohorts of prepare_patient_data.R (dataset ID <- AMLmap study name)
+    Source("TCGA_LAML", Path("results/patients/TCGA_LAML"), "sample_id", "n_samples", read_amlmap("TCGA_AML")),
+    Source("TARGET_AML", Path("results/patients/TARGET_AML"), "sample_id", "n_samples", read_amlmap("TARGET_AML")),
+    Source("LEUCEGENE", Path("results/patients/LEUCEGENE"), "sample_id", "n_samples", read_amlmap("LEUCEGENE_AML")),
+    Source("LUMC_AML", Path("results/patients/LUMC_AML"), "sample_id", "n_samples", read_amlmap("100LUMC_AML")),
 ]
 
 
@@ -179,13 +250,36 @@ def run_tool(script: str, args: list, log: Path) -> None:
 
 
 def read_hgnc() -> tuple[pd.DataFrame, str]:
-    """Ensembl ID <-> approved symbol, and the newest record date of the snapshot."""
+    """The approved genes with an Ensembl ID, and the newest record date of the snapshot."""
     hgnc = pd.read_csv(
         HGNC_PATH, sep="\t", dtype=str, keep_default_na=False, quoting=csv.QUOTE_NONE,
-        usecols=["symbol", "ensembl_gene_id", "date_modified"],
+        usecols=["symbol", "alias_symbol", "prev_symbol", "ensembl_gene_id", "date_modified"],
     )
     snapshot = hgnc["date_modified"].max()
+    for column in ["alias_symbol", "prev_symbol"]:
+        hgnc[column] = hgnc[column].str.strip('"')
     return hgnc[hgnc["ensembl_gene_id"] != ""], snapshot
+
+
+def symbols_to_ensembl(symbols: pd.Series, hgnc: pd.DataFrame) -> pd.DataFrame:
+    """Map gene symbols to Ensembl IDs, stopping at the first step that resolves a gene:
+    approved symbol; then a previous symbol or an alias that points to one gene only.
+    Returns a frame indexed like `symbols` with `ensembl` (empty if unresolved or ambiguous) and `step`."""
+
+    def unique_targets(column: str) -> pd.Series:
+        pairs = hgnc.assign(term=hgnc[column].str.split("|")).explode("term")
+        pairs = pairs[pairs["term"] != ""].drop_duplicates(["term", "ensembl_gene_id"])
+        return pairs.groupby("term")["ensembl_gene_id"].agg(lambda ids: ids.iloc[0] if len(ids) == 1 else "")
+
+    lookups = [("approved symbol", hgnc.drop_duplicates("symbol").set_index("symbol")["ensembl_gene_id"]),
+               ("previous symbol", unique_targets("prev_symbol")), ("alias", unique_targets("alias_symbol"))]
+    result = pd.DataFrame({"ensembl": "", "step": ""}, index=symbols.index)
+    for step, table in lookups:
+        found = symbols.map(table).fillna("")
+        new = (result["ensembl"] == "") & (found != "")
+        result.loc[new, "ensembl"] = found[new]
+        result.loc[new, "step"] = step
+    return result
 
 
 def warning_rows(severity: str, code: str, message, source: str, key="", scope="run", sample_id="") -> pd.DataFrame:
@@ -325,6 +419,9 @@ def collect_warnings(bulk: Bulk, props: pd.DataFrame, run_infos, run_of_method, 
                  "may let the malignant profile absorb normal cell types" for p in low["proportion"]],
                 "processing", key=key, scope="sample", sample_id=list(low["sample_id"])))
 
+    for severity, code, message in bulk.notes:
+        rows.append(warning_rows(severity, code, message, "processing"))
+
     n_samples = bulk.matrix.shape[1]
     if n_samples < MIN_BULK_SAMPLES:
         rows.append(warning_rows(
@@ -359,7 +456,7 @@ def process_source(source: Source, hgnc: pd.DataFrame, hgnc_snapshot: str, commi
     print(f"== {source.dataset_id}")
     samples = read_tsv(source.folder / "samples.tsv")
     sample_ids = list(samples[source.key])
-    bulk = source.reader(sample_ids)
+    bulk = source.reader(sample_ids, hgnc)
     print(f"{bulk.matrix.shape[1]} of {len(sample_ids)} samples have RNA; {bulk.matrix.shape[0]} genes")
 
     props, run_infos, run_of_method = run_methods(source, bulk)

@@ -172,7 +172,7 @@ Pooled profiles per cell type or cell state are not stored. `deconvolve.R` compu
 | `--reference` | required | Reference `.rds` from `build_reference.R` |
 | `--bulk` | required | Genes × bulk samples count matrix: `.tsv`, `.csv` (first column = gene ID) or `.rds` (matrix/data.frame with gene rownames). The delimiter is taken from the extension |
 | `--output-dir` | required | Where outputs are written |
-| `--bulk-input` | `counts` | `counts`: raw counts, non-integers rounded with a warning. `normalized`: linear CPM/TPM/RPKM-like values, kept as they are (no rounding, no integer check); negatives and NA are still rejected. Log scale is not detectable and must not be passed. Recorded in run info as `bulk.input`. (Added in AML_data_processing; not in the jamboree copy) |
+| `--bulk-input` | `counts` | `counts`: raw or estimated counts, non-integers rounded with a warning. `normalized`: linear CPM-like values (library-size normalized only), kept as they are (no rounding, no integer check); negatives and NA are still rejected. TPM, RPKM, FPKM and log scale must not be passed in either mode. Recorded in run info as `bulk.input`. (Added in AML_data_processing; not in the jamboree copy) |
 | `--output-prefix` | `<bulk base name>_<reference name>_<method>` | Prefix for all output files |
 | `--method` | `instaprism` | **One method per run**: `instaprism` or `nnls` (others once added). Comparing methods means separate runs |
 | `--use-cell-states` / `--no-cell-states` | on if the reference has states and the method reports cell states | Off collapses cell states to cell types before fitting. Always off for methods that fit only at cell-type level (§7) |
@@ -193,6 +193,8 @@ Options for one method only are explicit options named with that method's prefix
 ### Pipeline
 
 **1. Load and validate the reference.** See §5.
+
+**Input requirement.** The bulk matrix must be raw or estimated counts, or linear CPM-like values (library-size normalized only, `--bulk-input normalized`). Transcript-length-normalized data (TPM, RPKM, FPKM) and log-scale values are not valid input: the reference is built from counts without gene-length bias, and normalizing the bulk by transcript length changes the relative weight of genes, so the mixture model no longer matches. The tool cannot detect them (it only warns when `counts` are not integers), so the caller must check the units.
 
 **2. Read the bulk matrix.**
 - **Gene ID type is auto-detected:** if most IDs match `^ENS[A-Z]*G\d+`, they're Ensembl; otherwise symbols.
