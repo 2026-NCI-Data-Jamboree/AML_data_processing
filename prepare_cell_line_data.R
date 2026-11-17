@@ -103,6 +103,20 @@ mut <- matrix(0, length(ids), length(aml_genes), dimnames = list(ids, aml_genes)
 mut[rownames(mh), ] <- mut[rownames(mh), ] + mh
 mut[rownames(md), ] <- mut[rownames(md), ] + md
 
+# FLT3-ITD (juxtamembrane in-frame insertion / duplication, codons ~560-640) and TKD (D835 / I836 /
+# N841 / Y842) are in neither mutation matrix, so mut_FLT3 misses them; call them from the variant table
+va <- read_rows(file.path(dd, "DepMap_26Q3", "OmicsSomaticMutations.csv"), aml$ModelID)
+if ("IsDefaultEntryForModel" %in% names(va)) va <- va[va$IsDefaultEntryForModel == "Yes", ]
+aa_pos <- suppressWarnings(as.numeric(sub("^p\\.[A-Za-z]+([0-9]+).*$", "\\1", va$ProteinChange)))
+is_flt3 <- va$HugoSymbol == "FLT3"
+itd <- is_flt3 & grepl("inframe_insertion|inframe_duplication", va$VariantInfo) & !is.na(aa_pos) &
+  aa_pos >= 560 & aa_pos <= 640
+tkd <- is_flt3 & grepl("^p\\.(D835|I836|N841|Y842)", va$ProteinChange)
+itd_models <- unique(va$ModelID[itd])
+flt3_models <- unique(va$ModelID[itd | tkd])
+mut[rownames(mut) %in% flt3_models, "FLT3"] <- mut[rownames(mut) %in% flt3_models, "FLT3"] + 1
+cat("FLT3-ITD lines:", paste(line_of_model[itd_models], collapse = ", "), "\n")
+
 ic <- match(aml$StrippedCellLineName, cls$cell_line)
 samples <- data.frame(
   cell_line        = aml$StrippedCellLineName,
@@ -139,6 +153,7 @@ if (any(disagree)) cat("KMT2A curated vs fusion calls disagree for:",
 mi <- match(aml$ModelID, rownames(mut))
 for (g in aml_genes) samples[[paste0("mut_", g)]] <- ifelse(is.na(mi), NA, mut[pmax(mi, 1), g] > 0)
 samples$mutations <- apply(mut[mi, , drop = FALSE], 1, function(r) paste(aml_genes[!is.na(r) & r > 0], collapse = ";"))
+samples$FLT3_ITD <- ifelse(is.na(mi), NA, aml$ModelID %in% itd_models)
 samples <- samples[order(samples$cell_line), ]
 
 write_tsv(samples, "samples.tsv")
@@ -153,6 +168,7 @@ grp <- read.delim(text = paste(
   "MYC_mTOR_category\tMYC x mTOR RNA category\t\t",
   "KMT2A_rearranged\tKMT2A rearrangement\tKMT2A-r\tKMT2A wild-type",
   paste0("mut_", aml_genes, "\t", aml_genes, " mutation\t", aml_genes, "-mutant\t", aml_genes, "-wild-type", collapse = "\n"),
+  "FLT3_ITD\tFLT3-ITD\tFLT3-ITD\tno FLT3-ITD",
   "Mito_high\tMitochondrial group\tMito-High\tMito-Low",
   "disease_oncotree\tOncoTree code\t\t",
   "population\tAdult / pediatric\t\t",
@@ -205,6 +221,58 @@ d2 <- read_cols(file.path(dd, "DEMETER2_v6/D2_combined_gene_dep_scores.csv"), am
 X  <- t(as.matrix(d2[, -1])); colnames(X) <- d2[[1]]; rownames(X) <- line_of_ccle[rownames(X)]
 put("rnai", X, data.frame(label = sub(" \\(.*$", "", colnames(X)), sym_entrez(colnames(X))),
     "RNAi dependency", "rnai_dependency", "DEMETER2 gene effect", "DEMETER2 v6", TRUE)
+
+# --- Copy number, DepMap gene-level relative CN: log2(relative CN + 1), so 1 = ploidy-neutral.
+# 26Q3 when downloaded, else the 24Q4 copy (source says which). Protein-coding genes with an NCBI
+# cytoband only; chromosome + cytoband let the portal aggregate genes into genomic regions.
+cn_file <- c(file.path(dd, "DepMap_26Q3/OmicsCNGene.csv"), file.path(dd, "DepMap_24Q4/OmicsCNGene.csv"))
+cn_file <- cn_file[file.exists(cn_file)][1]
+gi_file <- file.path(dd, "annotation/Homo_sapiens.gene_info.gz")
+if (!is.na(cn_file) && file.exists(gi_file)) {
+  cn <- read_rows(cn_file, aml$ModelID)
+  if ("IsDefaultEntryForModel" %in% names(cn)) cn <- cn[cn$IsDefaultEntryForModel == "Yes", ]
+  id_col <- if ("ModelID" %in% names(cn)) match("ModelID", names(cn)) else 1L   # 24Q4: unnamed first column
+  gene_cols <- grep(" \\([0-9]+\\)$", names(cn))
+  X  <- by_model(cn[, c(id_col, gene_cols)], 1)
+  gi <- read.delim(gzfile(gi_file), quote = "", comment.char = "", stringsAsFactors = FALSE,
+                   check.names = FALSE, colClasses = "character")
+  gi <- gi[gi$type_of_gene == "protein-coding", ]
+  i  <- match(sub("^.*\\(([0-9]+)\\)$", "\\1", colnames(X)), gi$GeneID)
+  keep <- !is.na(i) & gi$map_location[i] != "-" & gi$chromosome[i] %in% c(1:22, "X", "Y")
+  X <- X[, keep, drop = FALSE]; i <- i[keep]
+  put("cn", X, data.frame(label = sub(" \\(.*$", "", colnames(X)), sym_entrez(colnames(X)),
+                          chromosome = gi$chromosome[i], cytoband = gi$map_location[i]),
+      "Copy number", "copy_number", "log2(relative CN + 1)",
+      paste("DepMap", sub("^.*DepMap_([^/]+)/.*$", "\\1", cn_file)))
+}
+
+# --- Measured cell-surface proteome (George et al. 2026, bioRxiv 10.64898/2026.09.16.752145): surface
+# biotinylation, mean abundance per line; 0 = not detected -> NA, then log2. Non-AML lines (ALL, CML) drop
+# out in put(). surfaceome = UniProt places the protein at the cell surface (cell membrane, or signal
+# peptide + transmembrane), when the annotation files are present; spc = the paper's surface score (0-4).
+surface_genes <- local({
+  files <- file.path(dd, "annotation", c("uniprot_cellmembrane.tsv", "uniprot_sp_tm.tsv"))
+  files <- files[file.exists(files)]
+  unique(unlist(lapply(files, function(f) read.delim(f, check.names = FALSE, quote = "")[["Gene Names (primary)"]])))
+})
+f_surf <- file.path(dd, "surfaceome_George_2026", "media-4_surface_mean_abundance.xlsx")
+if (file.exists(f_surf) && requireNamespace("readxl", quietly = TRUE)) {
+  x <- as.data.frame(readxl::read_excel(f_surf))
+  lines <- setdiff(names(x), c("Accession", "Gene_Symbol", "SPC"))
+  M <- as.matrix(x[, lines]); storage.mode(M) <- "double"; M[M <= 0] <- NA
+  norm_line <- function(v) gsub("[^A-Z0-9]", "", toupper(v))
+  alias <- c(WSU = "WSUAML")
+  k <- norm_line(lines); k <- ifelse(k %in% names(alias), alias[k], k)
+  X <- t(log2(M)); colnames(X) <- x$Accession
+  rownames(X) <- aml$StrippedCellLineName[match(k, norm_line(aml$StrippedCellLineName))]
+  ok <- !duplicated(x$Accession)
+  X <- X[!is.na(rownames(X)), ok, drop = FALSE]
+  sym <- sub("[;,].*$", "", ifelse(is.na(x$Gene_Symbol[ok]), "", x$Gene_Symbol[ok]))
+  put("surface_george", X, data.frame(label = sym, gene_symbol = sym, entrez_id = "", spc = x$SPC[ok],
+                                      surfaceome = sym %in% surface_genes, stringsAsFactors = FALSE),
+      "Surface protein abundance (George 2026)", "proteomics", "log2 mean abundance",
+      "George et al. 2026 bioRxiv 2026.09.16.752145")
+}
 
 # --- Drug response (AUC), DepMap harmonized screens
 cmpd <- read.csv(file.path(dd, "DepMap_26Q3/PortalCompounds.csv"), stringsAsFactors = FALSE)

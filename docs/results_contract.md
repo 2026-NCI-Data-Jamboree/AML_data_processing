@@ -50,6 +50,8 @@ Binary groupings are TRUE/FALSE, and empty when the line is not annotated:
 | `mTOR_high` | mTOR RNA signature score above the median | 56 (curated classification) |
 | `MYC_high` | MYC RNA signature score above the median | 56 |
 | `KMT2A_rearranged` | KMT2A fusion (`KMT2A_partner`; `KMT2A_source` = curated or DepMap fusion calls) | 70 |
+| `cn` layer | gene-level relative copy number, log2(relative CN + 1) (1 = ploidy-neutral); features add `chromosome`, `cytoband` (NCBI) so the portal can aggregate genes into arms / bands. Modality `copy_number` | lines with CN |
+| `FLT3_ITD` | FLT3 internal tandem duplication (juxtamembrane in-frame insertion, variant-level calls); `mut_FLT3` also counts ITD and TKD (D835/I836/N841/Y842) | lines with mutation calls |
 | `mut_<GENE>` | hotspot or damaging mutation in GENE (20 recurrent AML genes) | lines with mutation calls |
 | `Mito_high` | mitochondrial High group | lines in `data/mito_classification.tsv` |
 
