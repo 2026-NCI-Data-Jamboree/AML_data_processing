@@ -61,8 +61,8 @@ REFERENCE = {
     "rds": Path("data/reference/aml-scatlas.rds"),
     "malignant": "Malignant",  # malignant cell type label in the reference
     "name": "AML scAtlas",
-    "source": "AML scAtlas AnnData, https://doi.org/10.48420/27269946; "
-    "built by 2026-nci-data-jamboree/analyses/aml-scatlas-reference",
+    "source": "CELLxGENE AML scAtlas dataset (collection 071b706a-7ea7-47a4-bddf-6457725839fc, dataset version "
+    "be1f3ced-6b8f-47b0-a3e2-7edc8d466abd); built with deconvolution/references/aml-scatlas",
     "citation": "Whittle et al., eLife 2026, https://doi.org/10.7554/eLife.104978",
     "limitations": (
         "Bone marrow, diagnosis samples only; Smart-seq2 libraries (Velten, Stetson) dropped because their "
