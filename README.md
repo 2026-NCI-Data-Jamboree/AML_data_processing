@@ -161,6 +161,7 @@ run logs, bulk matrices and outputs stay in `deconvolution/runs/` (gitignored).
 
 - **Setup:** `renv::restore()` in `deconvolution/` (R 4.6.2; system libraries for some packages, e.g. `libpng-dev`,
   `libuv1-dev`, `libharfbuzz-dev`), `data/reference/aml-scatlas.rds` and `data/reference/hgnc_complete_set.txt` (`data/README.md`).
+  To rebuild the reference, follow `deconvolution/references/aml-scatlas/README.md` (CELLxGENE download, split by sample with uv, `build_reference.R`).
 - **Reference:** everything specific to the reference (ID, `.rds` path, malignant label, citation, limitations) is in one
   block at the top of the script, so a new reference means rebuilding the `.rds`, editing that block and rerunning.
 - **Adding a cohort:** a `Source` entry and a reader that returns the bulk matrix (Ensembl IDs x the folder's `sample_id`s)
