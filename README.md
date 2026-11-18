@@ -50,7 +50,7 @@ automatically, or you can set `AML_PORTAL_DATA=/path/to/results`.
 
 ## Patient data (`prepare_patient_data.R`)
 
-Twelve cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
+Fifteen cohorts, written to `results/patients/<DATASET_ID>/` in the same layout as `results/cell_lines/`
 (one column per sample in `values/`):
 
 | DATASET_ID | cohort | samples / patients | layers | survival |
@@ -66,6 +66,9 @@ Twelve cohorts, written to `results/patients/<DATASET_ID>/` in the same layout a
 | `TARGET_AML` | TARGET AML (pediatric), from the AMLmap compendium | 145 / 145 | RNA (145) | OS |
 | `LEUCEGENE` | Leucegene, from the AMLmap compendium | 399 / 399 | RNA (399) | none |
 | `LUMC_AML` | LUMC AML, from the AMLmap compendium | 95 / 95 | RNA (95) | none |
+| `JAYAVELU_2022_DISCOVERY` | Jayavelu et al. 2022 Cancer Cell, discovery cohort | 177 / 177 | protein, label-free, unimputed (177) | OS |
+| `JAYAVELU_2022_VALIDATION` | Jayavelu et al. 2022 Cancer Cell, validation cohort | 75 / 75 | protein, SILAC, imputed (75) | OS |
+| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome, Cell Reports 2024 | 100 / 100 | surface protein (100) | none |
 | `ZENODO_14160480` | AML proteogenomics, Zenodo record 14160480 (374 newly diagnosed) | 374 / 374 | RNA (361), protein (374), phosphosites (217), drug IC50, 41 drugs (102) | OS, EFS |
 
 - **Annotation** (`schema/sample_annotation.tsv`): population, age, sex, OncoTree code, tissue,
@@ -102,6 +105,18 @@ Twelve cohorts, written to `results/patients/<DATASET_ID>/` in the same layout a
   the molecular category or a KMT2A fusion (partner from the SV file). Extra groupings: molecular category
   (KMT2Ar, RUNX1::RUNX1T1, CBFB::MYH11, NUP98r, UBTF, ...) and FAB. No risk group, survival or drug
   response. 157 samples come from TARGET, and some patients may overlap Wang 2022 (IDs cannot be matched).
+- **Jayavelu 2022 (discovery, validation):** Cancer Cell supplementary Data S1 / S3. Discovery protein = the unimputed
+  label-free (DIA) proteome, 0 = not quantified -> NA; validation protein = the authors' imputed SILAC ratios (no
+  unimputed version). Mutations: targeted myeloid panels (pathological variants; discovery panel II only `mutated`) at
+  VAF >= 5% plus clinical NPM1 / FLT3-ITD / TKD; genes with no call in a cohort = not assayed. KMT2A-r from balanced
+  11q23 translocations in the karyotype. Extra groupings: AML type (de novo / sAML / tAML), FAB, FLT3-ITD. OS in
+  days; relapse-free survival kept as `relapse_free_survival_days` / `rfs_event`.
+- **Leucegene surfaceome (Cell Reports 2024):** Tables S1 / S2. Layer `surface` (modality `surface_proteomics`, kept
+  apart from whole-cell `protein`): vsn-normalised, knn-imputed log2 intensity as provided; features carry `uniprot`,
+  `spat_score` and `likely_surface` (SPAT >= 8). Three HLA-DRB1 accessions listed twice are averaged (higher SPAT
+  kept). Mutations tested: NPM1, DNMT3A, RUNX1 (mut_*) and FLT3-ITD (`FLT3_ITD`; TKD not tested, so mut_FLT3 is NA).
+  Risk = cytogenetic risk. Extra groupings: AML subgroup, WHO 2022, FAB, FLT3-ITD. 85 specimens are in the AMLmap
+  Leucegene RNA cohort, whose participant_id drops AMLmap's leading X so the two cohorts share patients.
 - **AMLmap (TCGA, TARGET, Leucegene, LUMC):** one compendium (`data/patients/AMLmap`), split into one cohort per
   study; its Beat AML samples are not used. RNA = log2(CPM+1) of the counts AMLmap corrected for study and
   library batch. Mutations = protein-altering calls at VAF >= 5% plus the FLT3-ITD / TKD, NPM1, IDH1/2 and

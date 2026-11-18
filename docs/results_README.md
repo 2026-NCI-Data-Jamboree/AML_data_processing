@@ -9,7 +9,7 @@ cohorts and cell lines can be analysed side by side:
 
 - **70 AML cell lines** with 13 data types: RNA, CRISPR and RNAi dependency, three drug screens, methylation,
   miRNA, chromatin marks, metabolomics, copy number and the cell-surface proteome.
-- **12 patient cohorts**, adult and pediatric: 3,712 samples from 3,333 patients, with RNA, protein,
+- **15 patient cohorts**, adult and pediatric: 4,064 samples from 3,600 patients, with RNA, protein, surface protein,
   phosphosites, mutations, clinical data and ex vivo drug response.
 
 The data was produced by `prepare_cell_line_data.R` and `prepare_patient_data.R` in
@@ -61,6 +61,9 @@ All tables are tab-separated with a header row. Empty cells mean missing. `.tsv.
 | `TARGET_AML` | TARGET AML (from the AMLmap compendium) | pediatric | 145 / 145 | RNA (145) | OS |
 | `LEUCEGENE` | Leucegene (from the AMLmap compendium) | adult | 399 / 399 | RNA (399) | none |
 | `LUMC_AML` | LUMC AML (from the AMLmap compendium) | adult | 95 / 95 | RNA (95) | none |
+| `JAYAVELU_2022_DISCOVERY` | Jayavelu et al. 2022, discovery cohort | adult | 177 / 177 | protein, label-free (177) | OS |
+| `JAYAVELU_2022_VALIDATION` | Jayavelu et al. 2022, validation cohort | adult | 75 / 75 | protein, SILAC, imputed (75) | OS |
+| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome (Cell Reports 2024) | adult | 100 / 100 | surface protein (100) | none |
 
 Each cohort's `provenance.tsv` has notes on how it was processed. References, sources and accessions are in
 `dataset_sources.tsv`.

@@ -26,6 +26,7 @@ modality	transcriptomics
 modality	methylation	
 modality	proteomics	
 modality	phosphoproteomics	
+modality	surface_proteomics	cell-surface enriched proteome
 modality	metabolomics	
 modality	lipidomics	
 modality	mirna	

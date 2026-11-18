@@ -249,12 +249,15 @@ write_cohort <- function(id, samples, layers, extra_groupings = NULL, notes = ""
     write.table(x, con, sep = "\t", quote = FALSE, row.names = FALSE, na = ""); close(con)
   }
   stopifnot(!anyDuplicated(samples$sample_id))
+  for (j in names(samples)) if (is.character(samples[[j]]))     # line breaks / tabs in text (e.g. Excel karyotype
+    samples[[j]] <- trimws(gsub("\\s*(_x000D_|[\r\n\t])+\\s*", " ", samples[[j]]))   # cells) would split TSV rows
   samples$study_id <- id; samples$sample_type <- "patient"
   for (f in setdiff(FIELDS, names(samples))) samples[[f]] <- NA
   samples <- samples[, c(FIELDS, setdiff(names(samples), FIELDS))]
 
   idx <- list()
   for (L in layers) {
+    stopifnot(!anyDuplicated(rownames(L$X)))                    # feature IDs must be unique in values/
     X <- L$X[, colnames(L$X) %in% samples$sample_id, drop = FALSE]
     ok <- rowSums(!is.na(X)) >= 3 & apply(X, 1, function(v) isTRUE(sd(v, na.rm = TRUE) > 0))
     X <- X[ok, , drop = FALSE]; feats <- L$features[ok, , drop = FALSE]
@@ -751,7 +754,8 @@ for (st0 in names(amlmap_studies)) {
   kdx <- x$KMT2A_diagnosis
   kany <- num(ab[x$sample_id, "any_KMT2A"])
   s <- data.frame(
-    sample_id = x$sample_id, participant_id = x$sample_id,
+    sample_id = x$sample_id,                         # Leucegene: "X02H066" -> participant "02H066", the ID used
+    participant_id = if (id == "LEUCEGENE") sub("^X", "", x$sample_id) else x$sample_id,   # by the Leucegene surfaceome
     population = if (id == "TARGET_AML") "pediatric" else ifelse(num(x$age) < 18, "pediatric", "adult"),
     age_years = round(num(x$age), 1), sex = tolower(x$sex), disease_oncotree = ifelse(grepl("PML.?RARA", x$WHO_2022) | x$FAB %in% "M3", "APLPMLRARA", "AML"),
     diagnosis = x$WHO_2022,
@@ -786,6 +790,149 @@ for (st0 in names(amlmap_studies)) {
                    if (id == "TARGET_AML") " Some patients may also be in the St. Jude cohort (IDs cannot be matched)." else ""))
 }
 rm(E_all)
+
+# ============================================ Jayavelu et al. 2022 Cancer Cell (proteogenomic subtypes) ==
+# data/patients/AML_cancer_cell_2022: Data S1 (discovery cohort, 177 patients, label-free DIA proteome) and
+# Data S3 (validation cohort, 75 patients, SILAC proteome); clinical data, targeted myeloid panels, OS.
+# Each cohort is its own dataset. Discovery: the unimputed proteome (0 = not quantified -> NA). Validation:
+# only an imputed proteome is provided (log2 SILAC ratio sample / standard).
+JC <- file.path(dd, "AML_cancer_cell_2022")
+jay_kmt2a <- function(k) ifelse(is.na(k), NA,             # balanced 11q23 translocations / deletions only
+  grepl("t\\([0-9XY]+;11\\)\\([^;)]+;q23|t\\(11;[0-9XY]+\\)\\(q23|del\\(11\\)\\(q23|inv\\(11\\)\\([^)]*q23", k))
+jay_samples <- function(cl, eln_col, eln_label) {
+  num_or_na <- function(x) num(x)
+  hsct <- cl$`Allogeneic HSCT`
+  s <- data.frame(
+    sample_id = cl$ID, participant_id = cl$ID,
+    population = ifelse(num(cl$`Age at Diagnosis [Years]`) < 18, "pediatric", "adult"),
+    age_years = round(num(cl$`Age at Diagnosis [Years]`), 1),
+    sex = c(f = "female", m = "male")[trimws(tolower(cl[[grep("^Sex", names(cl))[1]]]))],
+    disease_oncotree = "AML", diagnosis = c("de novo" = "de novo AML", sAML = "secondary AML",
+                                            tAML = "therapy-related AML")[cl$Precursor],
+    timepoint = "diagnosis",
+    risk_group = risk_of(cl[[eln_col]]), risk_classification = ifelse(is.na(risk_of(cl[[eln_col]])), NA, eln_label),
+    KMT2A_rearranged = jay_kmt2a(cl$Karyotype),
+    treatment_response = c(CR1 = "CR", "no CR1" = "refractory")[cl$CR1],
+    overall_survival_days = round(num(cl$`OS [months]`) * DAYS_PER_MONTH),
+    os_event = c("1" = TRUE, "0" = FALSE)[cl$`Death Event`],
+    relapse_free_survival_days = round(num(cl$`RFS [months]`) * DAYS_PER_MONTH),
+    rfs_event = c("1" = TRUE, "0" = FALSE)[cl$`Relapse Event`],
+    aml_type = cl$Precursor, FAB = cl$FAB,
+    blasts_bm_pct = num_or_na(cl$`Bone marrow Blasts [%]`), blasts_pb_pct = num_or_na(cl$`Peripheral Blasts [%]`),
+    karyotype = cl$Karyotype,
+    HSCT = ifelse(is.na(hsct), NA, !grepl("^(no|non)\\b", tolower(hsct))),   # "TraNo ...t" = a find/replace-garbled "Transplant"
+    stringsAsFactors = FALSE)
+  s
+}
+jay_mutations <- function(s, cl, calls) {            # calls: sample, gene (already filtered); + clinical NPM1 / FLT3
+  M <- mut_matrix(s$sample_id, aml_genes, calls$sample, calls$gene)
+  M[cl$NPM1 %in% "Mut", "NPM1"] <- TRUE
+  M[cl$FLT3 %in% c("ITD", "TKD"), "FLT3"] <- TRUE
+  M[, colSums(M) == 0] <- NA                         # no call in the cohort: gene treated as not assayed
+  s$FLT3_ITD <- ifelse(is.na(cl$FLT3), NA, cl$FLT3 == "ITD")
+  add_mutations(s, M)
+}
+jay_groupings <- data.frame(column = c("aml_type", "FAB", "FLT3_ITD"), label = c("AML type (de novo / secondary)",
+                            "FAB subtype", "FLT3-ITD"), true_label = c("", "", "FLT3-ITD"),
+                            false_label = c("", "", "no FLT3-ITD"), kind = c("categorical", "categorical", "binary"))
+
+cat("JAYAVELU_2022_DISCOVERY\n")
+f1 <- file.path(JC, "Data S1 Discovery Cohort.xlsx")
+cl <- xlsx_read(f1, "Clinical Characteristics")
+s  <- jay_samples(cl, "ELN2017", "ELN 2017")
+p1 <- xlsx_read(f1, "PanelSeq I"); p2 <- xlsx_read(f1, "PanelSeq II")
+calls <- rbind(data.frame(sample = p1$Pat_ID, gene = p1$Gene, vaf = num(p1$Frequency)),      # pathological variants
+               data.frame(sample = p2$Pat_ID, gene = p2$Gene, vaf = num(p2$`mutation load [%]`))[p2$`result variant` %in% "mutated", ])
+calls <- calls[is.na(calls$vaf) | calls$vaf >= 5, ]
+s <- jay_mutations(s, cl, calls)
+up <- xlsx_read(f1, "Unimputed Proteome", header = FALSE)
+ids <- up[1, ]; sc <- which(ids %in% s$sample_id)
+P  <- matrix(num(up[-(1:2), sc]), ncol = length(sc)); colnames(P) <- ids[sc]
+P[!is.na(P) & P <= 0] <- NA                                    # 0 = not quantified
+P  <- collapse_rows(P, sub(";.*$", "", up[-(1:2), match("PG.Genes", up[1, ])]))   # row 1: IDs and PG.* headers
+write_cohort("JAYAVELU_2022_DISCOVERY", s, list(
+  protein_layer(P, "log2 intensity (label-free DIA, not imputed)", "Jayavelu et al. 2022 (Data S1)")),
+  extra_groupings = jay_groupings,
+  notes = paste("Discovery cohort of Jayavelu et al. 2022 Cancer Cell (177 adult AML patients at diagnosis): unimputed",
+                "label-free proteome. Mutations from two targeted myeloid panels (pathological variants; panel II calls",
+                "marked mutated) at VAF >= 5%, plus clinical NPM1 and FLT3-ITD / TKD. KMT2A-r from 11q23",
+                "translocations in the karyotype. OS in days; relapse-free survival kept as relapse_free_survival_days."))
+
+cat("JAYAVELU_2022_VALIDATION\n")
+f3 <- file.path(JC, "Data S3 Validation Cohort.xlsx")
+cl <- xlsx_read(f3, "Clinical Characteristics")
+cl <- cl[!is.na(cl$ID), !grepl("^V[0-9]+$", names(cl))]
+s  <- jay_samples(cl, "ELN", "ELN")
+pv <- xlsx_read(f3, "PanelSeq")
+calls <- data.frame(sample = pv$Pat_ID, gene = pv$Gene, vaf = num(sub("%.*$", "", pv$Coverage)))
+calls <- calls[is.na(calls$vaf) | calls$vaf >= 5, ]
+s <- jay_mutations(s, cl, calls)
+pr <- xlsx_read(f3, "Imputed Proteome", header = FALSE)      # row 1: annotation headers; row 2: sample IDs
+sc <- which(pr[2, ] %in% s$sample_id)
+P  <- matrix(num(pr[-(1:2), sc]), ncol = length(sc)); colnames(P) <- pr[2, sc]
+P  <- collapse_rows(P, sub(";.*$", "", pr[-(1:2), match("Gene names", pr[1, ])]))
+write_cohort("JAYAVELU_2022_VALIDATION", s, list(
+  protein_layer(P, "log2 ratio sample / SILAC standard (imputed)", "Jayavelu et al. 2022 (Data S3)")),
+  extra_groupings = jay_groupings,
+  notes = paste("Validation cohort of Jayavelu et al. 2022 Cancer Cell (75 AML patients at diagnosis): SILAC proteome,",
+                "imputed by the authors (no unimputed version provided). Mutations from a targeted myeloid panel",
+                "(pathological variants, VAF >= 5%) plus clinical NPM1 / FLT3; genes with no call are treated as not",
+                "assayed. Risk group as reported (ELN). OS in days."))
+
+# ======================================== Leucegene AML surfaceome (Cell Reports 2024) ==
+# data/patients/AML_surfaceome_Cell_Reports_2024: Table S1 (clinical / molecular, 100 primary AML specimens) and
+# Table S2 (surface proteome per specimen: MaxQuant, vsn-normalised, knn-imputed log2 intensity; SPAT score =
+# the authors' surface-likelihood score, >= 8 = likely surface). 85 specimens are also in the AMLmap Leucegene
+# RNA cohort; they share participant_id, so a patient is counted once.
+cat("LEUCEGENE_SURFACEOME_2024\n")
+LS <- file.path(dd, "AML_surfaceome_Cell_Reports_2024")
+cl <- xlsx_read(file.path(LS, "Table_S1.xlsx"), "AML surfaceome cohort", skip = 2)
+cl <- cl[!is.na(cl$`Specimen ID`), !grepl("^V[0-9]+$", names(cl))]
+fab <- sub("^AML-", "", cl$`FAB classification`); fab[grepl("^Not classifiable", fab)] <- NA
+fab <- sub("^M5([AB])$", "M5\\L\\1", fab, perl = TRUE)                       # M5A -> M5a, as other cohorts
+s <- data.frame(
+  sample_id = cl$`Specimen ID`, participant_id = cl$`Specimen ID`,
+  population = ifelse(num(cl$`Age at diagnosis`) < 18, "pediatric", "adult"), age_years = num(cl$`Age at diagnosis`),
+  sex = c(F = "female", M = "male")[cl$Sex],
+  disease_oncotree = ifelse(grepl("PML::RARA", cl$`WHO 2022 classification at AML diagnosis`), "APLPMLRARA", "AML"),
+  diagnosis = cl$`WHO 2022 classification at AML diagnosis`,
+  timepoint = c(diagnosis = "diagnosis", refractory = "refractory", relapse = "relapse")[tolower(trimws(cl$`Status at sampling`))],
+  risk_group = risk_of(trimws(cl$`Cytogenetic risk`)), risk_classification = "cytogenetic",
+  KMT2A_rearranged = cl$`AML subgroup classification` %in% "KMT2A-r" | cl$`Cytogenetic group` %in% "KMT2A rearrangement",
+  FLT3_ITD = c("1" = TRUE, "0" = FALSE)[cl$`FLT3-ITD`],
+  aml_subgroup = cl$`AML subgroup classification`, who_2022 = cl$`WHO 2022 classification at AML diagnosis`, FAB = fab,
+  cytogenetic_group = cl$`Cytogenetic group`, karyotype = cl$Karyotype,
+  blasts_pct = num(cl$`Blasts (%) (blood or bone marrow smears)`), wbc = num(cl$`WBC (x 10E9/L)`),
+  stringsAsFactors = FALSE)
+M <- sapply(c("NPM1", "DNMT3A", "RUNX1"), function(g) c("1" = TRUE, "0" = FALSE)[cl[[g]]])   # only these were tested;
+rownames(M) <- s$sample_id                                       # FLT3 = ITD only (TKD not tested): FLT3_ITD, not mut_FLT3
+s <- add_mutations(s, M)
+ms <- xlsx_read(file.path(LS, "Table_S2.xlsx"), "Mass spect data per specimen", header = FALSE)
+ids <- ms[5, ]; sc <- which(ids %in% s$sample_id)               # row 4: headers; row 5: specimen IDs
+body <- as.data.frame(ms[-(1:5), , drop = FALSE], stringsAsFactors = FALSE); body <- body[!is.na(body[, 1]), ]
+X <- matrix(num(as.matrix(body[, sc])), ncol = length(sc), dimnames = list(NULL, ids[sc]))
+body$spat <- num(body[, 3])
+X <- collapse_rows(X, body[, 1])                     # rows = UniProt ID; a few HLA-DRB1 IDs are listed twice: averaged
+body <- body[order(-ifelse(is.na(body$spat), -1, body$spat)), ]   # ... keeping the higher SPAT score
+body <- body[!duplicated(body[, 1]), ]; body <- body[match(rownames(X), body[, 1]), ]
+sym <- trimws(sub("[;,].*$", "", body[, 2])); cur <- to_hgnc(sym); cur[is.na(cur)] <- sym[is.na(cur)]
+surf_layer <- list(key = "surface", X = X,
+  features = data.frame(label = ifelse(is.na(cur) | cur == "", body[, 1], cur), gene_symbol = ifelse(is.na(cur), "", cur),
+                        uniprot = body[, 1], spat_score = body$spat, likely_surface = body$spat >= 8,
+                        stringsAsFactors = FALSE),
+  label = "Surface protein abundance", modality = "surface_proteomics",
+  unit = "log2 intensity (vsn-normalised, imputed)", source = "Leucegene AML surfaceome, Cell Reports 2024 (Table S2)",
+  lower_is_stronger = FALSE)
+write_cohort("LEUCEGENE_SURFACEOME_2024", s, list(surf_layer),
+  extra_groupings = data.frame(column = c("aml_subgroup", "who_2022", "FAB", "FLT3_ITD"),
+                               label = c("AML subgroup", "WHO 2022 class", "FAB subtype", "FLT3-ITD"),
+                               true_label = c("", "", "", "FLT3-ITD"), false_label = c("", "", "", "no FLT3-ITD"),
+                               kind = c("categorical", "categorical", "categorical", "binary")),
+  notes = paste("Leucegene AML surfaceome (Cell Reports 2024): surface proteome of 100 primary AML specimens",
+                "(97 at diagnosis). Values as provided: vsn-normalised, knn-imputed log2 intensity; features keep the",
+                "SPAT surface score (>= 8 = likely surface). Mutations tested: NPM1, DNMT3A, RUNX1 and FLT3-ITD only.",
+                "Risk group = cytogenetic risk. 85 specimens are also in the Leucegene RNA cohort (same participant_id).",
+                "No survival data."))
 
 # shared metadata the portal reads alongside the data
 for (d in c("catalog", "schema")) { unlink(file.path("results", d), recursive = TRUE)
