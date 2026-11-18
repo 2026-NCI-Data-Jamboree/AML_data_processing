@@ -25,9 +25,7 @@
 #   drugs     compound_key = upper-case name without salts / brackets / punctuation, so the same drug
 #             matches across cohorts; HGNC targets from DepMap PortalCompounds (name or synonym match)
 #   mutations mut_<GENE> TRUE/FALSE for 20 recurrent AML genes (NA = gene not assayed for that sample)
-#   MYC / mTOR RNA signature scores: mean z-score of the signature genes (data/*_signature_RNA.tsv)
-#             within each cohort; *_high = above the cohort median. On DepMap AML lines this tracks the
-#             published classification (r = 0.90 MYC, 0.82 mTOR; 96% / 89% same median split).
+#   MYC / mTOR RNA signature groups are not derived for patients (cell lines only, prepare_cell_line_data.R)
 #
 # Usage: Rscript prepare_patient_data.R     (from the repo root; base R + xml2)
 
@@ -183,23 +181,6 @@ drug_aliases <- function(x) lapply(x, function(s) {
   al <- regmatches(s, gregexpr("\\(([^()]*)\\)", s))[[1]]
   c(trimws(sub("\\s*\\(.*$", "", s)), gsub("^\\(|\\)$", "", al), s) })
 
-# ---- MYC / mTOR RNA signature scores within a cohort
-signatures <- list(MYC = read.delim("data/MYC_signature_RNA.tsv")$x,
-                   mTOR = read.delim("data/mTOR_signature_RNA.tsv")$x)
-add_signatures <- function(samples, E) {                          # E: genes x samples, log scale
-  for (s in names(signatures)) {
-    E <- hgnc_rows(E, keep_unmapped = TRUE)
-    g <- intersect(to_hgnc(signatures[[s]]), rownames(E))
-    Z <- t(scale(t(E[g, , drop = FALSE]))); Z <- Z[is.finite(rowSums(Z)), , drop = FALSE]
-    sc <- colMeans(Z)
-    samples[[paste0(s, "_score")]] <- round(unname(sc[samples$sample_id]), 4)
-    samples[[paste0(s, "_high")]]  <- samples[[paste0(s, "_score")]] > median(sc)
-  }
-  samples$MYC_mTOR_category <- ifelse(is.na(samples$MYC_high), NA,
-    paste0("MYC-", ifelse(samples$MYC_high, "High", "Low"), " / mTOR-", ifelse(samples$mTOR_high, "High", "Low")))
-  samples
-}
-
 # ---- mutation columns from a sample x gene logical matrix (rows = sample_id; NA = not assayed)
 add_mutations <- function(samples, M) {
   M <- M[match(samples$sample_id, rownames(M)), , drop = FALSE]
@@ -218,13 +199,9 @@ FIELDS <- c("sample_id", "study_id", "participant_id", "sample_type", "populatio
             "disease_oncotree", "diagnosis", "tissue", "timepoint", "risk_group", "risk_classification",
             "KMT2A_rearranged", "KMT2A_partner", "treatment_response",
             "overall_survival_days", "os_event", "event_free_survival_days", "efs_event",
-            "MYC_score", "mTOR_score", "MYC_high", "mTOR_high", "MYC_mTOR_category",
             paste0("mut_", aml_genes), "mutations")
 GROUPINGS <- read.delim(text = paste(
   "column\tlabel\ttrue_label\tfalse_label",
-  "MYC_high\tMYC RNA signature\tMYC-High\tMYC-Low",
-  "mTOR_high\tmTOR RNA signature\tmTOR-High\tmTOR-Low",
-  "MYC_mTOR_category\tMYC x mTOR RNA category\t\t",
   "KMT2A_rearranged\tKMT2A rearrangement\tKMT2A-r\tKMT2A wild-type",
   paste0("mut_", aml_genes, "\t", aml_genes, " mutation\t", aml_genes, "-mutant\t", aml_genes, "-wild-type", collapse = "\n"),
   "risk_group\tRisk group\t\t",
@@ -386,7 +363,6 @@ s$cell_state <- pvc$Classification[match(map$labId[match(s$sample_id, map$dbgap_
 # expression (log2 normalized; RNA-seq samples)
 ex <- read.delim(file.path(B, "beataml_waves1to4_norm_exp_dbgap.txt"), check.names = FALSE)
 E <- collapse_rows(num_matrix(ex, 5:ncol(ex)), ensembl_symbol(ex$stable_id))   # by Ensembl ID
-s <- add_signatures(s, E[, colnames(E) %in% s$sample_id])
 # drug response: probit-fit AUC, one value per specimen x inhibitor
 dr <- read.delim(file.path(B, "beataml_probit_curve_fits_v4_dbgap.txt"), stringsAsFactors = FALSE)
 dr$sample_id <- ifelse(is.na(dr$dbgap_rnaseq_sample) | dr$dbgap_rnaseq_sample == "", dr$dbgap_dnaseq_sample, dr$dbgap_rnaseq_sample)
@@ -527,7 +503,6 @@ s <- data.frame(
   induction_group = ifelse(cc$Induction_group %in% "NA", NA, cc$Induction_group),
   HSCT = c("1" = TRUE, "0" = FALSE)[cc$HSCT],
   stringsAsFactors = FALSE)
-s <- add_signatures(s, E)
 zg <- data.frame(column = c("proteomic_subtype", "FAB", "who_2022", "gene_fusion", "induction_group"),
                  label = c("Proteomic subtype (S1-S8)", "FAB subtype", "WHO 2022 class", "Gene fusion", "Induction group"),
                  true_label = "", false_label = "", kind = "categorical")
@@ -566,7 +541,6 @@ M <- cbind(NPM1 = yn(cl$NPM1), FLT3 = yn(cl$`FLT3 clinic`)); rownames(M) <- cl$s
 s <- add_mutations(s, M)
 ex <- xlsx_read(file.path(L, "Supp_Data_1.xlsx"), "patientExpression", skip = 2)
 E <- collapse_rows(num_matrix(ex, grep("^AML", names(ex))), ex$UID)
-s <- add_signatures(s, E)
 au <- xlsx_read(file.path(L, "Supp_Data_1.xlsx"), "patientAUC")
 D <- num_matrix(au, grep("^AML", names(au))); rownames(D) <- au$UID
 colnames(D) <- sub("^AML\\.?", "AML", colnames(D))
@@ -615,7 +589,6 @@ M[!yn(s3$`Targeted resequencing`) %in% TRUE, ] <- NA
 s <- add_mutations(s, M)
 rn <- xlsx_read(W, "Table S13-RNA-seq CPM")
 E <- collapse_rows(num_matrix(rn, grep("^LEU", names(rn))), rn$`Gene Symbol`)
-s <- add_signatures(s, E)
 d5 <- xlsx_read(W, "Table S5-AML Drug Profile")
 D <- tapply(num(d5$AUC), list(d5$Drug, d5$`Sample code`), mean)
 d4 <- xlsx_read(W, "Table S4-Drug Panel", skip = 1)
@@ -658,7 +631,6 @@ s <- add_mutations(s, M)
 cpm <- read.csv(file.path(F, "File_7_RNA_seq_CPM_163S_4Healthy.csv"), check.names = FALSE, row.names = 1)
 cpm <- as.matrix(cpm[, grepl("^AML_", colnames(cpm))])          # already log2 CPM (has negative values)
 E <- collapse_rows(cpm, ensembl_symbol(rownames(cpm)))
-s <- add_signatures(s, E)
 dss <- xlsx_read(file.path(F, "File_3.2_Drug_response_DSS_sDSS_164S_17Healthy.xlsx"), 1, skip = 2)
 dss <- dss[grepl("^AML_", dss$Sample_ID), ]
 lib <- xlsx_read(file.path(F, "File_2_Drug_library_515D.xlsx"), 1)
@@ -715,7 +687,6 @@ s <- add_mutations(s, M)
 rn <- read.delim(file.path(J, "data_mrna_seq_cpm.txt"), check.names = FALSE, quote = "")
 E <- collapse_rows(num_matrix(rn, setdiff(names(rn), "Hugo_Symbol")), rn$Hugo_Symbol)
 stopifnot(all(colnames(E) %in% s$sample_id))
-s <- add_signatures(s, E)
 write_cohort("AML_STJUDE_2024", s, list(expr_layer(E, "RNA expression", "log2 CPM", "Umeda et al. 2024 (cBioPortal)")),
   extra_groupings = data.frame(column = c("molecular_category", "FAB"),
                                label = c("Molecular category", "FAB subtype"),
@@ -776,7 +747,6 @@ for (st0 in names(amlmap_studies)) {
   M[, colSums(M) == 0] <- NA                      # no call at all in this study: gene treated as not assayed
   s <- add_mutations(s, M)
   E <- E_all[, colnames(E_all) %in% s$sample_id, drop = FALSE]
-  s <- add_signatures(s, E)
   write_cohort(id, s, list(expr_layer(E, "RNA expression", "log2(CPM+1), batch-corrected counts", "AMLmap")),
     extra_groupings = data.frame(column = c("amlmap_cluster", "who_2022", "icc_2022", "FAB"),
                                  label = c("AMLmap cluster", "WHO 2022 class", "ICC 2022 class", "FAB subtype"),
@@ -906,6 +876,13 @@ s <- data.frame(
   stringsAsFactors = FALSE)
 M <- sapply(c("NPM1", "DNMT3A", "RUNX1"), function(g) c("1" = TRUE, "0" = FALSE)[cl[[g]]])   # only these were tested;
 rownames(M) <- s$sample_id                                       # FLT3 = ITD only (TKD not tested): FLT3_ITD, not mut_FLT3
+# TP53 was not tested in this study; take the call from the AMLmap Leucegene cohort (written above) for the same
+# patient (85 of 100 specimens), so TP53-mutant vs wild-type can be compared with the cell lines. NA otherwise.
+lg <- read.delim(file.path(out_root, "LEUCEGENE", "samples.tsv"), colClasses = "character", na.strings = "")
+lg <- lg[!duplicated(lg$participant_id), ]
+tp53 <- yn(lg$mut_TP53[match(s$participant_id, lg$participant_id)])
+M <- cbind(M, TP53 = tp53)
+s$TP53_source <- ifelse(is.na(tp53), NA, "Leucegene (AMLmap) mutation calls, same patient")
 s <- add_mutations(s, M)
 ms <- xlsx_read(file.path(LS, "Table_S2.xlsx"), "Mass spect data per specimen", header = FALSE)
 ids <- ms[5, ]; sc <- which(ids %in% s$sample_id)               # row 4: headers; row 5: specimen IDs
@@ -928,9 +905,11 @@ write_cohort("LEUCEGENE_SURFACEOME_2024", s, list(surf_layer),
                                label = c("AML subgroup", "WHO 2022 class", "FAB subtype", "FLT3-ITD"),
                                true_label = c("", "", "", "FLT3-ITD"), false_label = c("", "", "", "no FLT3-ITD"),
                                kind = c("categorical", "categorical", "categorical", "binary")),
-  notes = paste("Leucegene AML surfaceome (Cell Reports 2024): surface proteome of 100 primary AML specimens",
+  notes = paste("Leucegene AML surfaceome (Bordeleau et al. 2024 Cell Rep 43:114260): surface proteome of 100 primary AML specimens",
                 "(97 at diagnosis). Values as provided: vsn-normalised, knn-imputed log2 intensity; features keep the",
-                "SPAT surface score (>= 8 = likely surface). Mutations tested: NPM1, DNMT3A, RUNX1 and FLT3-ITD only.",
+                "SPAT surface score (>= 8 = likely surface). Mutations tested: NPM1, DNMT3A, RUNX1 and FLT3-ITD only;",
+                "TP53 from the AMLmap Leucegene mutation calls of the same patient (85 specimens; 7 of the 8 mutant have",
+                "a complex karyotype).",
                 "Risk group = cytogenetic risk. 85 specimens are also in the Leucegene RNA cohort (same participant_id).",
                 "No survival data."))
 

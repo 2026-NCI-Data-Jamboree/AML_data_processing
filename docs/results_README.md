@@ -63,7 +63,7 @@ All tables are tab-separated with a header row. Empty cells mean missing. `.tsv.
 | `LUMC_AML` | LUMC AML (from the AMLmap compendium) | adult | 95 / 95 | RNA (95) | none |
 | `JAYAVELU_2022_DISCOVERY` | Jayavelu et al. 2022, discovery cohort | adult | 177 / 177 | protein, label-free (177) | OS |
 | `JAYAVELU_2022_VALIDATION` | Jayavelu et al. 2022, validation cohort | adult | 75 / 75 | protein, SILAC, imputed (75) | OS |
-| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome (Cell Reports 2024) | adult | 100 / 100 | surface protein (100) | none |
+| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome (Bordeleau et al. 2024 Cell Rep) | adult | 100 / 100 | surface protein (100) | none |
 
 Each cohort's `provenance.tsv` has notes on how it was processed. References, sources and accessions are in
 `dataset_sources.tsv`.
@@ -145,10 +145,8 @@ the protein at the cell surface; the capture also picks up some abundant intrace
 - **Survival:**
   - `overall_survival_days` and `event_free_survival_days` are in days.
   - `os_event` and `efs_event`: TRUE means the event was observed, FALSE means the patient was censored.
-- **MYC and mTOR RNA signatures:** `MYC_score` and `mTOR_score`, with `MYC_high` and `mTOR_high`
-  (above the cohort median).
-  - Cell lines use the published classification.
-  - Patients get a recomputed score that closely tracks it.
+- **MYC and mTOR RNA signatures** (cell lines only): `MYC_score` and `mTOR_score`, with `MYC_high` and
+  `mTOR_high`, from the published classification. Patient cohorts have no MYC / mTOR groups.
 - **Same patient in two cohorts:** PTRC samples are Beat AML specimens. Their clinical data and drug AUC
   come from the matching Beat AML sample, and that drug layer is marked
   `duplicate_of = BEAT_AML/drug_auc` so it is not counted twice.

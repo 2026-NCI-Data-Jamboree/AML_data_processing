@@ -68,7 +68,7 @@ Fifteen cohorts, written to `results/patients/<DATASET_ID>/` in the same layout 
 | `LUMC_AML` | LUMC AML, from the AMLmap compendium | 95 / 95 | RNA (95) | none |
 | `JAYAVELU_2022_DISCOVERY` | Jayavelu et al. 2022 Cancer Cell, discovery cohort | 177 / 177 | protein, label-free, unimputed (177) | OS |
 | `JAYAVELU_2022_VALIDATION` | Jayavelu et al. 2022 Cancer Cell, validation cohort | 75 / 75 | protein, SILAC, imputed (75) | OS |
-| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome, Cell Reports 2024 | 100 / 100 | surface protein (100) | none |
+| `LEUCEGENE_SURFACEOME_2024` | Leucegene AML surfaceome (Bordeleau et al. 2024 Cell Rep) | 100 / 100 | surface protein (100) | none |
 | `ZENODO_14160480` | AML proteogenomics, Zenodo record 14160480 (374 newly diagnosed) | 374 / 374 | RNA (361), protein (374), phosphosites (217), drug IC50, 41 drugs (102) | OS, EFS |
 
 - **Annotation** (`schema/sample_annotation.tsv`): population, age, sex, OncoTree code, tissue,
@@ -79,9 +79,7 @@ Fifteen cohorts, written to `results/patients/<DATASET_ID>/` in the same layout 
   and NPM1; Wang 2022: panel variants at VAF ≥ 5% plus clinical FLT3 / NPM1 / CEBPA; Malani 2022: binary
   mutation table plus clinical FLT3-ITD / TKD; St. Jude 2024: somatic WGS / WES calls (665 samples)
   plus FLT3-ITD from the structural variant calls.
-- **MYC / mTOR RNA signatures:** mean z-score of the genes in `data/*_signature_RNA.tsv` within each
-  cohort; `MYC_high` / `mTOR_high` = above the cohort median. This reproduces the published cell-line
-  classification closely but not exactly (r = 0.90 MYC, 0.82 mTOR on the 56 DepMap lines).
+- **MYC / mTOR groups:** not derived for patients; the MYC- / mTOR-high classification is for cell lines only.
 - **Drugs:** `features/drug_*.tsv` adds `compound_key` (normalized name, matches the same drug across
   cohorts), HGNC `targets` from DepMap `PortalCompounds.csv` (name or synonym match), `mechanism`,
   `drug_class`. `lower_is_stronger` is TRUE for AUC and FALSE for DSS / sDSS.
@@ -114,7 +112,8 @@ Fifteen cohorts, written to `results/patients/<DATASET_ID>/` in the same layout 
 - **Leucegene surfaceome (Cell Reports 2024):** Tables S1 / S2. Layer `surface` (modality `surface_proteomics`, kept
   apart from whole-cell `protein`): vsn-normalised, knn-imputed log2 intensity as provided; features carry `uniprot`,
   `spat_score` and `likely_surface` (SPAT >= 8). Three HLA-DRB1 accessions listed twice are averaged (higher SPAT
-  kept). Mutations tested: NPM1, DNMT3A, RUNX1 (mut_*) and FLT3-ITD (`FLT3_ITD`; TKD not tested, so mut_FLT3 is NA).
+  kept). Mutations tested: NPM1, DNMT3A, RUNX1 (mut_*) and FLT3-ITD (`FLT3_ITD`; TKD not tested, so mut_FLT3 is NA);
+  `mut_TP53` comes from the AMLmap Leucegene mutation calls of the same patient (`TP53_source`; 85 specimens).
   Risk = cytogenetic risk. Extra groupings: AML subgroup, WHO 2022, FAB, FLT3-ITD. 85 specimens are in the AMLmap
   Leucegene RNA cohort, whose participant_id drops AMLmap's leading X so the two cohorts share patients.
 - **AMLmap (TCGA, TARGET, Leucegene, LUMC):** one compendium (`data/patients/AMLmap`), split into one cohort per

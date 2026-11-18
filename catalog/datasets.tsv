@@ -11,7 +11,7 @@ TCGA_LAML	TCGA LAML (AMLmap)	patient	adult	clinical;genomics;transcriptomics	Can
 TARGET_AML	TARGET AML (AMLmap)	patient	pediatric	clinical;genomics;transcriptomics	Bolouri et al. 2018 Nat Med	AMLmap compendium (TARGET via GDC)	TARGET-AML	age_association;survival	processed	145 patients; RNA, mutations, OS
 LEUCEGENE	Leucegene (AMLmap)	patient	adult	clinical;genomics;transcriptomics		AMLmap compendium (Leucegene, IRIC Montreal)		age_association	processed	399 patients; RNA, mutations; no survival
 LUMC_AML	LUMC AML (AMLmap)	patient	adult	clinical;genomics;transcriptomics		AMLmap compendium (Leiden University Medical Center)		age_association	processed	95 patients; RNA, mutations; no survival
-LEUCEGENE_SURFACEOME_2024	Leucegene AML surfaceome	patient	adult	clinical;genomics;surface_proteomics	Leucegene AML surfaceome, Cell Reports 2024	Supplementary Tables S1, S2			processed	100 primary AML specimens; cell-surface proteome; 85 also in the Leucegene RNA cohort
+LEUCEGENE_SURFACEOME_2024	Leucegene AML surfaceome	patient	adult	clinical;genomics;surface_proteomics	Bordeleau et al. 2024 Cell Rep	Supplementary Tables S1, S2			processed	100 primary AML specimens; cell-surface proteome; 85 also in the Leucegene RNA cohort
 LEE_2018	Lee et al. AML drug response	patient	adult	clinical;transcriptomics;drug_screen	Lee et al. 2018 Nat Commun			drug_response_biomarkers	processed	
 MALANI_2022	FPM tumor board AML	patient	adult	clinical;genomics;transcriptomics;drug_screen	Malani et al. 2022 Cancer Discov			drug_response_biomarkers	processed	
 DEPMAP_26Q3	DepMap 26Q3	cell_line	mixed	transcriptomics;genomics;crispr_dependency;copy_number	Tsherniak et al. 2017 Cell	DepMap portal	26Q3	cell_line_variability	processed	
